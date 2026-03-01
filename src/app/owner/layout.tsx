@@ -1,68 +1,109 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import styles from "../admin/admin.module.css";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { usePathname } from "next/navigation";
+import { Sidebar, NavItem } from "@/components/Sidebar";
+import { ThemeCustomizer } from "@/components/ThemeCustomizer";
+import { useIdleTimeout } from "@/hooks/useIdleTimeout";
 
-const navItems = [
-    { name: "Global Leads (CRM)", path: "/owner/leads" },
-    { name: "Financial FY Reports", path: "/owner/finance" },
-    { name: "─── Reports ───", path: "", section: true },
-    { name: "📊 GST Report (GSTR-1/3B)", path: "/owner/reports/gst" },
-    { name: "💰 Financial P&L", path: "/owner/reports/financial" },
-    { name: "⚖️ Legal Compliance", path: "/owner/reports/compliance" },
+const navItems: NavItem[] = [
+    { label: "Global Leads (CRM)", path: "/owner/leads", icon: "🎯" },
+    { label: "Financial FY Report", path: "/owner/finance", icon: "📈" },
+    { label: "─ Reports", section: true, icon: "" },
+    { label: "GST Report (GSTR-1/3B)", path: "/owner/reports/gst", icon: "📄" },
+    { label: "Financial P&L", path: "/owner/reports/financial", icon: "💰" },
+    { label: "Legal Compliance", path: "/owner/reports/compliance", icon: "⚖️" },
 ];
 
-export default function OwnerLayout({
-    children,
-}: {
-    children: React.ReactNode;
+function IdleWarningModal({ countdown, onStayActive, onLogout }: {
+    countdown: number;
+    onStayActive: () => void;
+    onLogout: () => void;
 }) {
-    const pathname = usePathname();
-    const router = useRouter();
+    return (
+        <div style={{
+            position: "fixed", inset: 0, zIndex: 9999,
+            background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+            <div style={{
+                background: "var(--bg-secondary)", borderRadius: "16px", padding: "2rem",
+                width: 360, textAlign: "center", border: "1px solid var(--border-color)",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+            }}>
+                <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>⏱️</div>
+                <h2 style={{ margin: "0 0 0.5rem", fontSize: "1.2rem" }}>Session Expiring</h2>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: "0 0 1.5rem" }}>
+                    You&apos;ve been inactive. Logging out in <strong style={{ color: "#ef4444", fontSize: "1.1rem" }}>{countdown}s</strong>
+                </p>
+                <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>
+                    <button onClick={onLogout} style={{
+                        padding: "0.6rem 1.2rem", borderRadius: "8px",
+                        border: "1px solid var(--border-color)", background: "none",
+                        color: "var(--text-secondary)", cursor: "pointer", fontSize: "0.875rem",
+                    }}>Logout Now</button>
+                    <button onClick={onStayActive} style={{
+                        padding: "0.6rem 1.5rem", borderRadius: "8px", border: "none",
+                        background: "var(--accent-gold)", color: "#000",
+                        fontWeight: 700, cursor: "pointer", fontSize: "0.875rem",
+                    }}>Stay Logged In</button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
-    const handleLogout = async () => {
-        await fetch('/api/auth/logout', { method: 'POST' });
-        router.push('/login');
+export default function OwnerLayout({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
+    const { showWarning, countdown, logout } = useIdleTimeout({ timeoutMinutes: 15 });
+
+    const handleStayActive = () => {
+        window.dispatchEvent(new MouseEvent("mousemove"));
     };
 
     return (
-        <div className={styles.adminLayout}>
-            <aside className={`${styles.sidebar} ${styles.ownerSidebar}`} style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--accent-gold)' }}>
-                <div className={styles.brand} style={{ color: 'var(--accent-gold)' }}>Grand Imperial<br />Enterprise HQ</div>
-                <nav className={styles.navMenu}>
-                    {navItems.map((item) => {
-                        const isActive = pathname === item.path;
-                        return (
-                            <Link
-                                key={item.path}
-                                href={item.path}
-                                className={`${styles.navLink} ${isActive ? styles.navLinkActive : ""}`}
-                            >
-                                {item.name}
-                            </Link>
-                        );
-                    })}
-                </nav>
-            </aside>
+        <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-primary)" }}>
+            {showWarning && (
+                <IdleWarningModal
+                    countdown={countdown}
+                    onStayActive={handleStayActive}
+                    onLogout={logout}
+                />
+            )}
 
-            <main className={styles.mainContent}>
-                <header className={styles.topBar}>
-                    <div style={{ flex: 1 }}></div>
-                    <ThemeToggle />
-                    <div className={styles.userProfile}>
-                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: "0.875rem", color: "var(--text-primary)", fontWeight: 600 }}>Project Owner</span>
-                            <button onClick={handleLogout} style={{ fontSize: "0.75rem", color: "var(--accent-gold)", background: 'none', border: 'none', cursor: 'pointer', textAlign: 'right' }}>Logout</button>
-                        </div>
-                        <div className={styles.avatar} style={{ border: '2px solid var(--accent-gold)' }}></div>
+            <Sidebar
+                brand="Grand Imperial"
+                brandSub="Enterprise HQ"
+                navItems={navItems}
+                userRole="Founder / Project Owner"
+            />
+
+            <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                <header style={{
+                    padding: "0 1.5rem",
+                    height: 56,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    borderBottom: "1px solid var(--border-color)",
+                    background: "var(--bg-secondary)",
+                    gap: "1rem",
+                    backdropFilter: "blur(10px)",
+                }}>
+                    <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                        {pathname.split("/").filter(Boolean).map((p, i, arr) => (
+                            <span key={p}>
+                                {i > 0 && " / "}
+                                <span style={{ color: i === arr.length - 1 ? "var(--text-primary)" : "var(--text-secondary)", textTransform: "capitalize" }}>{p.replace(/-/g, " ")}</span>
+                            </span>
+                        ))}
                     </div>
                 </header>
-                <div className={styles.contentArea}>
+                <div style={{ flex: 1, overflowY: "auto" }}>
                     {children}
                 </div>
             </main>
+
+            <ThemeCustomizer isSuperAdmin={true} />
         </div>
     );
 }
