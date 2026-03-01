@@ -1,0 +1,22 @@
+{
+    "appId": "com.hotelmanager.app",
+    "appName": "Hotel Manager",
+    "webDir": "out",
+    "server": {
+        "url": "https://YOUR_VERCEL_APP_URL.vercel.app",
+        "cleartext": false
+    },
+    "android": {
+        "allowMixedContent": true,
+        "backgroundColor": "#0a0a0f"
+    },
+    "plugins": {
+        "SplashScreen": {
+            "launchShowDuration": 2000,
+            "launchAutoHide": true,
+            "backgroundColor": "#0a0a0f",
+            "androidSplashResourceName": "splash",
+            "showSpinner": false
+        }
+    }
+}

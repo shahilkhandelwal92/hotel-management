@@ -1,0 +1,15 @@
+{
+    "Index": {
+        "title": "Premium Hotel Management System",
+        "description": "Next-gen contactless hotel management platform",
+        "login_title": "Grand Imperial Portal",
+        "login_subtitle": "Enter your credentials to access the platform.",
+        "email_label": "Email Address",
+        "password_label": "Password",
+        "sign_in": "Sign In",
+        "authenticating": "Authenticating...",
+        "public_portals": "Public Portals",
+        "plan_event": "Plan an Event",
+        "plan_event_desc": "Cost Estimator for Weddings & Corporate Parties"
+    }
+}

@@ -1,0 +1,343 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Represents Hotel Properties onboarded onto the system
+model Hotel {
+  id        String @id @default(uuid())
+  name      String
+  location  String
+  roomCount Int    @default(0)
+  status    String @default("Active") // Active, Inactive
+
+  hasInHouseRestaurant Boolean @default(true)
+  zomatoLink           String?
+  swiggyLink           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users        User[]
+  events       CorporateEvent[]
+  leaveTypes   LeaveType[]
+  rooms        Room[]
+  amenities    Amenity[]
+  menuItems    MenuItem[]
+  groceryStock GroceryStock[]
+  eventVenues  EventVenue[]
+  financialRep FinancialReport[]
+}
+
+// Handles Super Admins, Hotel Admins, Staff, and Corporate Clients
+model User {
+  id       String @id @default(uuid())
+  email    String @unique
+  password String // Hashed password
+  salt     String?
+  name     String
+
+  hotelId String? // Nullable because Super Admins/Corporate might not belong to a specific hotel
+  hotel   Hotel?  @relation(fields: [hotelId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leaveRequests LeaveRequest[]
+  attendances   Attendance[]
+  
+  roles         UserRole[]
+  auditLogs     AuditLog[]
+}
+
+model Role {
+  id    String @id @default(uuid())
+  name  String @unique // e.g. SUPER_ADMIN, HOTEL_ADMIN, STAFF, KITCHEN, CORPORATE
+  
+  users UserRole[]
+}
+
+model UserRole {
+  id      String @id @default(uuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId  String
+  role    Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, roleId])
+}
+
+// Stores dynamic subscriptions for properties
+model Subscription {
+  id        String   @id @default(uuid())
+  hotelId   String
+  planName  String // e.g., Basic, Premium, Enterprise
+  amount    Float
+  status    String // Active, Cancelled
+  startDate DateTime
+  endDate   DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Corporate Event Entity
+model CorporateEvent {
+  id            String   @id @default(uuid())
+  name          String
+  date          DateTime
+  corporateName String
+  expectedCount Int
+  accessCode    String   @unique // Code for corporate login
+
+  hotelId String
+  hotel   Hotel  @relation(fields: [hotelId], references: [id])
+
+  guests Guest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Guests imported for the event
+model Guest {
+  id     String  @id @default(uuid())
+  name   String
+  mobile String
+  email  String?
+  status String  @default("Pending") // Pending, Attended
+
+  eventId String
+  event   CorporateEvent @relation(fields: [eventId], references: [id])
+
+  qrToken String @unique @default(uuid()) // Token for QR Check-in
+
+  attendanceTime DateTime? // Time they checked in
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders   FoodOrder[]
+  requests GuestRequest[]
+}
+
+// Represents a type of leave (e.g., Sick, Casual, Earned)
+model LeaveType {
+  id          String @id @default(uuid())
+  name        String // "Sick Leave", "Casual Leave"
+  defaultDays Int // How many days allowed per year
+
+  hotelId String
+  hotel   Hotel  @relation(fields: [hotelId], references: [id])
+
+  requests LeaveRequest[]
+}
+
+// Represents a specific leave application by a staff member
+model LeaveRequest {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  leaveTypeId String
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  startDate DateTime
+  endDate   DateTime
+  reason    String
+  status    String   @default("Pending") // Pending, Approved, Rejected
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Represents daily check-in / check-out
+model Attendance {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  date     DateTime  @default(now()) // Stored as DATE
+  checkIn  DateTime?
+  checkOut DateTime?
+  status   String    @default("Present") // Present, Half-Day, Absent
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date]) // A user has one attendance record per day
+}
+
+// Room Inventory
+model Room {
+  id                String  @id @default(uuid())
+  number            String
+  type              String // e.g., Deluxe, Suite
+  price             Float
+  includesBreakfast Boolean @default(false)
+  includesDinner    Boolean @default(false)
+  hotelId           String
+  hotel             Hotel   @relation(fields: [hotelId], references: [id])
+}
+
+// Amenity Pricing
+model Amenity {
+  id      String @id @default(uuid())
+  name    String // e.g., Spa, Gym, Extra Bed
+  price   Float
+  hotelId String
+  hotel   Hotel  @relation(fields: [hotelId], references: [id])
+}
+
+// Restaurant Menu Items
+model MenuItem {
+  id         String      @id @default(uuid())
+  name       String
+  category   String // e.g., Starters, Main Course, Beverages
+  price      Float
+  isVeg      Boolean     @default(true)
+  spiceLevel String // Low, Medium, High
+  hotelId    String
+  hotel      Hotel       @relation(fields: [hotelId], references: [id])
+  orderItems OrderItem[]
+}
+
+// Grocery/Kitchen Stock
+model GroceryStock {
+  id       String @id @default(uuid())
+  itemName String
+  quantity Float
+  unit     String // kg, liters, packets
+  minAlert Float // Trigger low stock alert if below this
+  hotelId  String
+  hotel    Hotel  @relation(fields: [hotelId], references: [id])
+}
+
+// Food Orders placed by Guests
+model FoodOrder {
+  id          String   @id @default(uuid())
+  guestId     String
+  guest       Guest    @relation(fields: [guestId], references: [id])
+  roomNumber  String
+  status      String   @default("Pending") // Pending, Preparing, Ready, Delivered
+  totalAmount Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items OrderItem[]
+}
+
+model OrderItem {
+  id         String    @id @default(uuid())
+  orderId    String
+  order      FoodOrder @relation(fields: [orderId], references: [id])
+  menuItemId String
+  menuItem   MenuItem  @relation(fields: [menuItemId], references: [id])
+  quantity   Int
+}
+
+// Service requests placed by guests
+model GuestRequest {
+  id          String @id @default(uuid())
+  guestId     String
+  guest       Guest  @relation(fields: [guestId], references: [id])
+  requestType String // e.g., "Extra Bed", "Housekeeping"
+  status      String @default("Pending") // Pending, Approved, Rejected, Paid
+  amount      Float  @default(0) // Added by staff upon approval
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Represents bookable areas (e.g., Banquet, Lawn, Restaurant)
+model EventVenue {
+  id              String @id @default(uuid())
+  name            String
+  maxCapacity     Int
+  basePricePerDay Float // Base rental fee
+  decorationPrice Float  @default(0) // Fixed standard decoration charge
+  foodPerPerson   Float  @default(0) // Catering cost per head
+  hotelId         String
+  hotel           Hotel  @relation(fields: [hotelId], references: [id])
+
+  bookings PartyBooking[]
+}
+
+// Represents a user booking for a party/wedding
+model PartyBooking {
+  id            String @id @default(uuid())
+  guestName     String
+  contactMobile String
+  eventType     String // "Birthday", "Wedding", "Corporate"
+
+  venueId String
+  venue   EventVenue @relation(fields: [venueId], references: [id])
+
+  startDate  DateTime
+  endDate    DateTime // Supports multi-day like Weddings
+  guestCount Int
+
+  needsDecoration Boolean @default(false)
+  needsCatering   Boolean @default(false)
+  needsRooms      Boolean @default(false) // If they want to book stay rooms
+  roomsRequested  Int     @default(0)
+
+  estimatedCost Float
+  status        String @default("Pending") // Pending, Confirmed, Completed
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Enterprise CRM & SaaS Additions
+
+model HotelLead {
+  id              String   @id @default(uuid())
+  hotelName       String
+  contactPerson   String
+  contactEmail    String
+  contactMobile   String
+  status          String   @default("Scratch") // Scratch, Contacted, Negotiating, Onboarded, Lost
+  estimatedValue  Float    @default(0)
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model FinancialReport {
+  id            String   @id @default(uuid())
+  financialYear String   // e.g. "2025-2026"
+  hotelId       String?
+  hotel         Hotel?   @relation(fields: [hotelId], references: [id], onDelete: SetNull)
+  totalRevenue  Float    @default(0)
+  totalExpenses Float    @default(0)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String   // e.g., "PASSWORD_CHANGED", "BOOKING_CREATED", "LEAD_ONBOARDED"
+  entityType  String?  // e.g., "User", "Booking", "HotelLead"
+  entityId    String?
+  details     String?  // JSON stringified details
+  ipAddress   String?
+  
+  createdAt   DateTime @default(now())
+}

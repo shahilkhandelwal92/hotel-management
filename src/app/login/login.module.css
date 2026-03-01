@@ -1,0 +1,95 @@
+.loginContainer {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 10%, rgba(42, 92, 141, 0.2), transparent 60%),
+        radial-gradient(circle at 100% 100%, rgba(212, 175, 55, 0.1), transparent 50%);
+    padding: 2rem;
+}
+
+.loginCard {
+    width: 100%;
+    max-width: 480px;
+    padding: 3rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.header h2 {
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.header p {
+    font-size: 0.95rem;
+}
+
+.formGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.formGroup label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.inputField {
+    width: 100%;
+    padding: 1rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 1rem;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.inputField:focus {
+    outline: none;
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 0 1px var(--accent-gold);
+}
+
+.inputField::placeholder {
+    color: var(--text-secondary);
+}
+
+.submitBtn {
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.roleSelect {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.roleBtn {
+    flex: 1;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-weight: 500;
+}
+
+.roleBtn.active {
+    background: rgba(212, 175, 55, 0.1);
+    border-color: var(--accent-gold);
+    color: var(--accent-gold);
+}
