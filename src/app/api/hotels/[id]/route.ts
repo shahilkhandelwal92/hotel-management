@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// GET /api/hotels/[id] — get one hotel with staff, rooms, events
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+type Params = Promise<{ id: string }>;
+
+// GET /api/hotels/[id]
+export async function GET(_req: Request, { params }: { params: Params }) {
+    const { id } = await params;
     try {
         const hotel = await prisma.hotel.findUnique({
-            where: { id: params.id },
+            where: { id },
             include: {
                 rooms: { orderBy: { price: 'desc' } },
                 users: { take: 20, orderBy: { name: 'asc' } },
@@ -27,18 +30,19 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     }
 }
 
-// PUT /api/hotels/[id] — update hotel
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+// PUT /api/hotels/[id]
+export async function PUT(request: Request, { params }: { params: Params }) {
+    const { id } = await params;
     try {
         const body = await request.json();
         const { name, location, roomCount, status } = body;
 
         const hotel = await prisma.hotel.update({
-            where: { id: params.id },
+            where: { id },
             data: {
                 ...(name && { name }),
                 ...(location && { location }),
-                ...(roomCount !== undefined && { roomCount: parseInt(roomCount) }),
+                ...(roomCount !== undefined && { roomCount: parseInt(String(roomCount)) }),
                 ...(status && { status }),
             },
         });
@@ -50,10 +54,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
 }
 
-// DELETE /api/hotels/[id] — delete hotel
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+// DELETE /api/hotels/[id]
+export async function DELETE(_req: Request, { params }: { params: Params }) {
+    const { id } = await params;
     try {
-        await prisma.hotel.delete({ where: { id: params.id } });
+        await prisma.hotel.delete({ where: { id } });
         return NextResponse.json({ success: true });
     } catch (err) {
         console.error('DELETE /api/hotels/[id] error:', err);
