@@ -13,6 +13,7 @@ export async function GET(_req: Request, { params }: { params: Params }) {
                 rooms: { orderBy: { price: 'desc' } },
                 users: { take: 20, orderBy: { name: 'asc' } },
                 events: { orderBy: { date: 'desc' }, take: 5 },
+                _count: { select: { users: true, events: true } },
                 eventVenues: true,
                 amenities: true,
                 financialRep: { orderBy: { createdAt: 'desc' }, take: 1 },
