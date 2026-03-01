@@ -23,8 +23,11 @@ export default function CreateEventPage() {
             if (d.hotels?.length) {
                 setHotels(d.hotels);
                 setHotelId(d.hotels[0].id);
+            } else {
+                // No hotels yet — still allow form submission, API will use user's hotel
+                setHotels([]);
             }
-        });
+        }).catch(() => setHotels([]));
     }, []);
 
     const handleDrag = (e: React.DragEvent) => {
@@ -126,7 +129,7 @@ export default function CreateEventPage() {
 
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "2rem" }}>
                     <button type="button" onClick={() => router.back()} className="btn-secondary" style={{ padding: "0.75rem 1.5rem" }}>Cancel</button>
-                    <button type="submit" className="btn-primary" style={{ padding: "0.75rem 1.5rem" }} disabled={loading || !hotelId}>
+                    <button type="submit" className="btn-primary" style={{ padding: "0.75rem 1.5rem" }} disabled={loading}>
                         {loading ? "Creating..." : "Create Event & Import"}
                     </button>
                 </div>
