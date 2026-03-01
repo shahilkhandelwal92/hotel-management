@@ -5,7 +5,7 @@ import { getSession } from './lib/auth'; // Ensure this can run in Edge if neede
 // A list of public routes that do not require authentication
 const publicRoutes = ['/login', '/book-event', '/corporate'];
 // API routes that handle their own auth or do not require it
-const publicApiRoutes = ['/api/auth/login', '/api/apnacomplex/auth', '/api/apnacomplex/billing'];
+const publicApiRoutes = ['/api/auth/login', '/api/auth/logout', '/api/dev/seed', '/api/apnacomplex/auth', '/api/apnacomplex/billing'];
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
