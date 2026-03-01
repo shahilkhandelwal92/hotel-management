@@ -16,6 +16,20 @@ export async function GET() {
             });
         }
 
+        // Create default hotel
+        const hotel = await prisma.hotel.upsert({
+            where: { id: 'hotel_1' },
+            update: {},
+            create: {
+                id: 'hotel_1',
+                name: 'The Grand Imperial',
+                location: 'Mumbai, India',
+                roomCount: 50,
+                status: 'Active',
+                hasInHouseRestaurant: true,
+            }
+        });
+
         const superAdminRole = await prisma.role.findUnique({ where: { name: 'SUPER_ADMIN' } });
         const ownerRole = await prisma.role.findUnique({ where: { name: 'OWNER' } });
 
@@ -24,11 +38,14 @@ export async function GET() {
             const passwordHash = await hashPassword('password123');
             const owner = await prisma.user.upsert({
                 where: { email: 'owner@grandimperial.com' },
-                update: {},
+                update: {
+                    hotelId: hotel.id
+                },
                 create: {
                     name: 'Project Owner',
                     email: 'owner@grandimperial.com',
                     password: passwordHash,
+                    hotelId: hotel.id
                 }
             });
 
@@ -45,11 +62,14 @@ export async function GET() {
             const passwordHash = await hashPassword('password123');
             const superAdmin = await prisma.user.upsert({
                 where: { email: 'admin@grandimperial.com' },
-                update: {},
+                update: {
+                    hotelId: hotel.id
+                },
                 create: {
                     name: 'Hotel Manager',
                     email: 'admin@grandimperial.com',
                     password: passwordHash,
+                    hotelId: hotel.id
                 }
             });
 
@@ -61,7 +81,31 @@ export async function GET() {
             });
         }
 
-        return NextResponse.json({ success: true, message: 'Database seeded with core roles and users' });
+        // Add some default Room/Staff data for demo
+        await prisma.room.upsert({
+            where: { id: 'room_101' },
+            update: {},
+            create: {
+                id: 'room_101',
+                number: '101',
+                type: 'Deluxe',
+                price: 5500,
+                hotelId: hotel.id
+            }
+        });
+
+        await prisma.leaveType.upsert({
+            where: { id: 'lt_sick' },
+            update: {},
+            create: {
+                id: 'lt_sick',
+                name: 'Sick Leave',
+                defaultDays: 12,
+                hotelId: hotel.id
+            }
+        });
+
+        return NextResponse.json({ success: true, message: 'Database seeded with Hotel, Roles, and Users' });
     } catch (error) {
         console.error("Seed error:", error);
         return NextResponse.json({ error: 'Failed to seed DB' }, { status: 500 });
