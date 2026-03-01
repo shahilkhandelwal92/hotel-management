@@ -2,9 +2,26 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { mockEvents, mockGuests, CorporateEvent, EventGuest } from "@/lib/mockData";
 import styles from "../events.module.css";
 import React from "react";
+
+interface CorporateEvent {
+    id: string;
+    name: string;
+    corporateName: string;
+    date: Date | string;
+    expectedCount: number;
+    accessCode: string;
+    hotel?: { name: string; location: string };
+}
+
+interface EventGuest {
+    id: string;
+    name: string;
+    mobile: string;
+    email: string | null;
+    status: string;
+}
 
 export default function EventDetailPage() {
     const params = useParams();
@@ -13,13 +30,25 @@ export default function EventDetailPage() {
     const [guests, setGuests] = useState<EventGuest[]>([]);
     const [sending, setSending] = useState(false);
 
+    const [error, setError] = useState("");
+
     useEffect(() => {
-        // Mock data fetch
-        const evt = mockEvents.find(e => e.id === params.eventId);
-        if (evt) {
-            setEvent(evt);
-            setGuests(mockGuests.filter(g => g.eventId === evt.id));
-        }
+        if (!params.eventId) return;
+
+        const fetchEvent = async () => {
+            try {
+                const res = await fetch(`/api/events/${params.eventId}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Failed to fetch event");
+                setEvent(data.event);
+                setGuests(data.event.guests || []);
+            } catch (err: any) {
+                console.error("Error fetching event:", err);
+                setError(err.message);
+            }
+        };
+
+        fetchEvent();
     }, [params.eventId]);
 
     const handleSendUpdates = () => {
@@ -29,6 +58,13 @@ export default function EventDetailPage() {
             setSending(false);
         }, 1500);
     };
+
+    if (error) return (
+        <div className="animate-fade-in p-8 text-center text-secondary">
+            <p className="text-red-500 mb-4">{error}</p>
+            <button onClick={() => router.back()} className="btn-secondary">Back to Events</button>
+        </div>
+    );
 
     if (!event) return <div className="animate-fade-in p-8 text-center text-secondary">Loading event details...</div>;
 

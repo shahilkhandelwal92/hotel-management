@@ -1,64 +1,45 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
-const hotelData: Record<string, {
-    name: string; location: string; rooms: number; status: string;
-    gstin: string; pan: string; category: string; checkIn: string; checkOut: string;
-    occupancy: number; revenue: string; staff: { name: string; role: string; status: string }[];
-    recentBookings: { guest: string; room: string; checkIn: string; checkOut: string; amount: string; status: string }[];
-}> = {
-    "1": {
-        name: "The Grand Imperial", location: "Mumbai, Maharashtra", rooms: 120,
-        status: "Active", gstin: "27AABCT1234C1Z5", pan: "AABCT1234C",
-        category: "5-Star", checkIn: "14:00", checkOut: "12:00",
-        occupancy: 84, revenue: "₹1.23 Cr",
-        staff: [
-            { name: "Raj Kumar", role: "Front Desk Manager", status: "On Duty" },
-            { name: "Priya Sharma", role: "Housekeeping Head", status: "On Duty" },
-            { name: "Amit Verma", role: "F&B Manager", status: "On Duty" },
-            { name: "Neha Patel", role: "Concierge", status: "Off Duty" },
-        ],
-        recentBookings: [
-            { guest: "Anand Shah", room: "Suite 401", checkIn: "2026-03-01", checkOut: "2026-03-05", amount: "₹34,000", status: "Checked In" },
-            { guest: "Meera Joshi", room: "Deluxe 302", checkIn: "2026-03-02", checkOut: "2026-03-04", amount: "₹17,000", status: "Confirmed" },
-            { guest: "Rohit Gupta", room: "Superior 201", checkIn: "2026-03-03", checkOut: "2026-03-06", amount: "₹25,500", status: "Confirmed" },
-        ]
-    },
-    "2": {
-        name: "Royal Orchid", location: "New Delhi, Delhi", rooms: 85,
-        status: "Active", gstin: "07AABCR5678D1Z2", pan: "AABCR5678D",
-        category: "4-Star", checkIn: "14:00", checkOut: "11:00",
-        occupancy: 71, revenue: "₹74.2L",
-        staff: [
-            { name: "Sunita Mehta", role: "General Manager", status: "On Duty" },
-            { name: "Kiran Rao", role: "Front Desk", status: "On Duty" },
-            { name: "Vikram Singh", role: "Security Head", status: "On Duty" },
-        ],
-        recentBookings: [
-            { guest: "Deepak Nair", room: "Room 204", checkIn: "2026-03-01", checkOut: "2026-03-03", amount: "₹9,000", status: "Checked In" },
-            { guest: "Pooja Iyer", room: "Room 310", checkIn: "2026-03-02", checkOut: "2026-03-05", amount: "₹13,500", status: "Confirmed" },
-        ]
-    },
-    "3": {
-        name: "Sunset Resort & Spa", location: "Panaji, Goa", rooms: 45,
-        status: "Active", gstin: "30AABCS9012E1Z9", pan: "AABCS9012E",
-        category: "3-Star", checkIn: "13:00", checkOut: "11:00",
-        occupancy: 92, revenue: "₹38.6L",
-        staff: [
-            { name: "Carlos D'Souza", role: "Resort Manager", status: "On Duty" },
-            { name: "Lakshmi Nair", role: "Spa Director", status: "On Duty" },
-        ],
-        recentBookings: [
-            { guest: "Arjun Menon", room: "Cottage 7", checkIn: "2026-03-01", checkOut: "2026-03-07", amount: "₹39,000", status: "Checked In" },
-        ]
-    },
-};
+interface HotelDetail {
+    id: string;
+    name: string;
+    location: string;
+    roomCount: number;
+    status: string;
+    gstin?: string;
+    pan?: string;
+    category?: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+    _count?: { users: number; rooms: number; events: number };
+    users?: { id: string; name: string; role: string }[];
+}
 
 export default function HotelDetailPage() {
     const { id } = useParams() as { id: string };
-    const hotel = hotelData[id];
+    const [hotel, setHotel] = useState<HotelDetail | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!id) return;
+        fetch(`/api/hotels/${id}`)
+            .then(r => r.json())
+            .then(d => {
+                if (d.hotel) setHotel(d.hotel);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    }, [id]);
+
+    if (loading) return (
+        <div style={{ padding: "4rem", textAlign: "center", color: "var(--text-secondary)" }}>
+            Loading property details...
+        </div>
+    );
 
     if (!hotel) return (
         <div style={{ padding: "3rem", textAlign: "center" }}>
@@ -83,10 +64,10 @@ export default function HotelDetailPage() {
             {/* Stats */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
                 {[
-                    { label: "Total Rooms", value: hotel.rooms, icon: "🛏️" },
-                    { label: "Occupancy Rate", value: `${hotel.occupancy}%`, icon: "📊" },
-                    { label: "Monthly Revenue", value: hotel.revenue, icon: "💰" },
-                    { label: "Staff Count", value: hotel.staff.length, icon: "👥" },
+                    { label: "Total Rooms", value: hotel.roomCount, icon: "🛏️" },
+                    { label: "Occupancy Rate", value: "84%", icon: "📊" },
+                    { label: "Monthly Revenue", value: "₹1.23 Cr", icon: "💰" },
+                    { label: "Staff Count", value: hotel._count?.users ?? 0, icon: "👥" },
                 ].map((s, i) => (
                     <div key={i} style={{ padding: "1.2rem", background: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div>
@@ -103,11 +84,11 @@ export default function HotelDetailPage() {
                 <div style={{ padding: "1.5rem", background: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
                     <h3 style={{ margin: "0 0 1rem", fontSize: "0.95rem", fontWeight: 700 }}>Property Details</h3>
                     {[
-                        { label: "Category", value: hotel.category },
-                        { label: "PAN", value: hotel.pan },
-                        { label: "GSTIN", value: hotel.gstin },
-                        { label: "Check-in", value: hotel.checkIn },
-                        { label: "Check-out", value: hotel.checkOut },
+                        { label: "Category", value: hotel.category || "-" },
+                        { label: "PAN", value: hotel.pan || "-" },
+                        { label: "GSTIN", value: hotel.gstin || "-" },
+                        { label: "Check-in", value: hotel.checkInTime || "-" },
+                        { label: "Check-out", value: hotel.checkOutTime || "-" },
                     ].map(r => (
                         <div key={r.label} style={{ display: "flex", justifyContent: "space-between", padding: "0.5rem 0", borderBottom: "1px solid var(--border-color)" }}>
                             <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{r.label}</span>
@@ -142,48 +123,33 @@ export default function HotelDetailPage() {
 
             {/* Staff */}
             <div style={{ marginBottom: "2rem" }}>
-                <h3 style={{ margin: "0 0 1rem", fontSize: "0.95rem", fontWeight: 700 }}>Staff on Duty</h3>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700 }}>Staff Overview</h3>
+                    <Link href="/admin/users" style={{ fontSize: "0.85rem", color: "var(--accent-gold)", textDecoration: "none" }}>Manage All Staff →</Link>
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.75rem" }}>
-                    {hotel.staff.map((s, i) => (
+                    {hotel.users && hotel.users.length > 0 ? hotel.users.map((s, i) => (
                         <div key={i} style={{ padding: "1rem", background: "var(--bg-secondary)", borderRadius: "10px", border: "1px solid var(--border-color)" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                                 <div>
                                     <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{s.name}</div>
                                     <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: "0.2rem" }}>{s.role}</div>
                                 </div>
-                                <span style={{ padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "0.72rem", fontWeight: 600, background: s.status === "On Duty" ? "rgba(16,185,129,0.1)" : "rgba(148,163,184,0.1)", color: s.status === "On Duty" ? "#10b981" : "#94a3b8" }}>{s.status}</span>
+                                <span style={{ padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "0.72rem", fontWeight: 600, background: "rgba(16,185,129,0.1)", color: "#10b981" }}>Active</span>
                             </div>
                         </div>
-                    ))}
+                    )) : (
+                        <div style={{ gridColumn: "1 / -1", padding: "1rem", background: "var(--bg-secondary)", borderRadius: "10px", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+                            No staff members assigned to this property yet.
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Recent Bookings */}
-            <h3 style={{ margin: "0 0 1rem", fontSize: "0.95rem", fontWeight: 700 }}>Recent Bookings</h3>
-            <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.87rem" }}>
-                    <thead>
-                        <tr style={{ background: "var(--bg-secondary)" }}>
-                            {["Guest", "Room", "Check-in", "Check-out", "Amount", "Status"].map(h => (
-                                <th key={h} style={{ padding: "0.8rem 1rem", textAlign: "left", color: "var(--text-secondary)", fontWeight: 600, borderBottom: "1px solid var(--border-color)" }}>{h}</th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {hotel.recentBookings.map((b, i) => (
-                            <tr key={i} style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                <td style={{ padding: "0.8rem 1rem", fontWeight: 600 }}>{b.guest}</td>
-                                <td style={{ padding: "0.8rem 1rem", color: "var(--text-secondary)" }}>{b.room}</td>
-                                <td style={{ padding: "0.8rem 1rem" }}>{b.checkIn}</td>
-                                <td style={{ padding: "0.8rem 1rem" }}>{b.checkOut}</td>
-                                <td style={{ padding: "0.8rem 1rem", fontWeight: 700, color: "var(--accent-gold)" }}>{b.amount}</td>
-                                <td style={{ padding: "0.8rem 1rem" }}>
-                                    <span style={{ padding: "0.2rem 0.7rem", borderRadius: "20px", fontSize: "0.78rem", fontWeight: 600, background: b.status === "Checked In" ? "rgba(59,130,246,0.1)" : "rgba(16,185,129,0.1)", color: b.status === "Checked In" ? "#3b82f6" : "#10b981" }}>{b.status}</span>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+            {/* Recent Activity Placeholder */}
+            <h3 style={{ margin: "0 0 1rem", fontSize: "0.95rem", fontWeight: 700 }}>Recent Activity</h3>
+            <div style={{ padding: "2rem", textAlign: "center", background: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border-color)", borderStyle: "dashed", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+                Activity logs and bookings will appear here as they are processed in real-time.
             </div>
         </div>
     );
