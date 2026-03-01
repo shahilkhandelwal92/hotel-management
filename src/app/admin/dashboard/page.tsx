@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import styles from "./dashboard.module.css";
 
 const hotels = [
@@ -54,7 +55,7 @@ export default function DashboardPage() {
                                 <td>{hotel.rooms}</td>
                                 <td><span className={styles.statusActive}>{hotel.status}</span></td>
                                 <td>
-                                    <button style={{ background: 'transparent', border: 'none', color: 'var(--accent-blue)', cursor: 'pointer' }}>Manage &rarr;</button>
+                                    <Link href={`/admin/hotel/${hotel.id}`} style={{ background: 'transparent', border: 'none', color: 'var(--accent-gold)', cursor: 'pointer', textDecoration: 'none', fontWeight: 600, fontSize: '0.875rem' }}>Manage →</Link>
                                 </td>
                             </tr>
                         ))}
