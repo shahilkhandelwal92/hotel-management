@@ -16,6 +16,9 @@ const navItems = [
     { name: "HR Leaves", path: "/admin/hr/leaves" },
     { name: "HR Policy Settings", path: "/admin/hr/settings" },
     { name: "Property Settings", path: "/admin/settings" },
+    { name: "─── Reports ───", path: "", section: true },
+    { name: "📊 GST Report", path: "/admin/reports/gst" },
+    { name: "💰 Financial Report", path: "/admin/reports/financial" },
 ];
 
 export default function AdminLayout({

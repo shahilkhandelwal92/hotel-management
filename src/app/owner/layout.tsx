@@ -8,6 +8,10 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 const navItems = [
     { name: "Global Leads (CRM)", path: "/owner/leads" },
     { name: "Financial FY Reports", path: "/owner/finance" },
+    { name: "─── Reports ───", path: "", section: true },
+    { name: "📊 GST Report (GSTR-1/3B)", path: "/owner/reports/gst" },
+    { name: "💰 Financial P&L", path: "/owner/reports/financial" },
+    { name: "⚖️ Legal Compliance", path: "/owner/reports/compliance" },
 ];
 
 export default function OwnerLayout({
