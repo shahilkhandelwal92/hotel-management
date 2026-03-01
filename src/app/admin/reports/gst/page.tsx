@@ -7,23 +7,49 @@ const fmt = (n: number) => "₹" + n.toLocaleString("en-IN");
 export default function AdminGSTReportPage() {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [hotels, setHotels] = useState<any[]>([]);
+    const [hotelId, setHotelId] = useState("");
 
     useEffect(() => {
-        // hotel_1 = The Grand Imperial (this admin's property)
-        fetch("/api/reports/gst?hotelId=hotel_1")
-            .then(r => r.json())
-            .then(d => { setData(d); setLoading(false); });
+        fetch("/api/hotels").then(r => r.json()).then(d => {
+            if (d.hotels?.length) { setHotels(d.hotels); setHotelId(d.hotels[0].id); }
+        });
     }, []);
 
-    if (loading) return <div style={{ padding: "4rem", textAlign: "center" }}>Loading GST Report...</div>;
+    useEffect(() => {
+        if (!hotelId) return;
+        setLoading(true);
+        fetch(`/api/reports/gst?hotelId=${hotelId}`)
+            .then(r => r.json())
+            .then(d => { setData(d); setLoading(false); });
+    }, [hotelId]);
 
+    if (loading || !data) return <div style={{ padding: "4rem", textAlign: "center" }}>Loading GST Report...</div>;
+
+    const hotel = hotels.find(h => h.id === hotelId);
     const s = data.summary;
+
+    const exportCSV = () => {
+        if (!data?.roomGST) return;
+        const rows = [["Month", "Taxable Value", "GST", "CGST", "SGST", "Guest Type"], ...data.roomGST.map((r: any) => [r.month, r.baseRevenue, r.gstAmount, r.cgst, r.sgst, r.guestType])];
+        const csv = rows.map(r => r.join(",")).join("\n");
+        const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        a.download = `gst_report_${hotel?.name ?? "hotel"}_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    };
 
     return (
         <div style={{ padding: "2rem", maxWidth: 1100 }}>
-            <div style={{ marginBottom: "2rem" }}>
-                <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0 }}>GST Report — The Grand Imperial</h1>
-                <p style={{ color: "var(--text-secondary)", margin: "0.3rem 0 0" }}>GSTIN: 27AABCT1234C1Z5 · FY 2024-25 · Mumbai</p>
+            <div style={{ marginBottom: "2rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
+                <div>
+                    <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0 }}>GST Report — {hotel?.name ?? "Loading..."}</h1>
+                    <p style={{ color: "var(--text-secondary)", margin: "0.3rem 0 0" }}>FY 2024-25 · {hotel?.location}</p>
+                </div>
+                <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                    {hotels.length > 1 && <select value={hotelId} onChange={e => setHotelId(e.target.value)} style={{ padding: "0.5rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border-color)", background: "var(--bg-primary)", color: "var(--text-primary)", fontSize: "0.875rem" }}>
+                        {hotels.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+                    </select>}
+                    <button onClick={exportCSV} style={{ padding: "0.5rem 1rem", borderRadius: "8px", border: "1px solid var(--border-color)", background: "none", color: "var(--text-primary)", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}>⬇️ Export CSV</button>
+                </div>
             </div>
 
             {/* Summary */}

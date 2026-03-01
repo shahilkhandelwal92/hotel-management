@@ -8,25 +8,53 @@ const cr = (n: number) => `₹${(n / 10000000).toFixed(2)} Cr`;
 export default function AdminFinancialReportPage() {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [hotels, setHotels] = useState<any[]>([]);
+    const [hotelId, setHotelId] = useState("");
 
     useEffect(() => {
-        fetch("/api/reports/financial?hotelId=hotel_1")
-            .then(r => r.json())
-            .then(d => { setData(d); setLoading(false); });
+        fetch("/api/hotels").then(r => r.json()).then(d => {
+            if (d.hotels?.length) { setHotels(d.hotels); setHotelId(d.hotels[0].id); }
+        });
     }, []);
 
-    if (loading) return <div style={{ padding: "4rem", textAlign: "center" }}>Loading Financial Report...</div>;
+    useEffect(() => {
+        if (!hotelId) return;
+        setLoading(true);
+        fetch(`/api/reports/financial?hotelId=${hotelId}`)
+            .then(r => r.json())
+            .then(d => { setData(d); setLoading(false); });
+    }, [hotelId]);
 
+    if (loading || !data) return <div style={{ padding: "4rem", textAlign: "center" }}>Loading Financial Report...</div>;
+
+    const hotel = hotels.find(h => h.id === hotelId);
     const s = data.summary;
+
+    const exportCSV = () => {
+        if (!data?.monthlyTrend) return;
+        const rows = [["Month", "Room Revenue", "Restaurant", "Events", "Total", "Expenses", "Profit", "TDS"],
+        ...data.monthlyTrend.map((m: any) => {
+            const total = m.roomRev + m.restRev + m.eventRev;
+            return [m.month, m.roomRev, m.restRev, m.eventRev, total, m.expenses, total - m.expenses, m.tds];
+        })];
+        const csv = rows.map(r => r.join(",")).join("\n");
+        const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        a.download = `financial_report_${hotel?.name ?? "hotel"}_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    };
 
     return (
         <div style={{ padding: "2rem", maxWidth: 1100 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2rem", flexWrap: "wrap", gap: "1rem" }}>
                 <div>
-                    <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0 }}>Financial Report — The Grand Imperial</h1>
-                    <p style={{ color: "var(--text-secondary)", margin: "0.3rem 0 0" }}>FY {data.fiscalYear} · Mumbai · PAN: AABCT1234C</p>
+                    <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0 }}>Financial Report — {hotel?.name ?? "Loading..."}</h1>
+                    <p style={{ color: "var(--text-secondary)", margin: "0.3rem 0 0" }}>FY {data.fiscalYear} · {hotel?.location}</p>
                 </div>
-                <button style={{ padding: "0.7rem 1.5rem", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", fontWeight: 600, cursor: "pointer" }}>📥 Export Report</button>
+                <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                    {hotels.length > 1 && <select value={hotelId} onChange={e => setHotelId(e.target.value)} style={{ padding: "0.5rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border-color)", background: "var(--bg-primary)", color: "var(--text-primary)", fontSize: "0.875rem" }}>
+                        {hotels.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+                    </select>}
+                    <button onClick={exportCSV} style={{ padding: "0.7rem 1.5rem", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", fontWeight: 600, cursor: "pointer" }}>⬇️ Export CSV</button>
+                </div>
             </div>
 
             {/* P&L Summary Cards */}
