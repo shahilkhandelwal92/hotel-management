@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import styles from "./guest.module.css";
 import { useSearchParams } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-// Note: In a real app we'd fetch this configuration from the API connecting to Prisma Hotel model
 const MOCK_HOTEL_CONFIG = {
     hasInHouseRestaurant: false,
     zomatoLink: "https://www.zomato.com/ncr/restaurants",
     swiggyLink: "https://www.swiggy.com/restaurants"
 };
 
-export default function GuestPass() {
+function GuestPassContent() {
     const searchParams = useSearchParams();
     const token = searchParams.get("token") || "DEMO-TOKEN-123";
     const [mounted, setMounted] = useState(false);
@@ -37,7 +36,6 @@ export default function GuestPass() {
 
                 <div className={styles.qrSection}>
                     <div className={styles.qrWrapper}>
-                        {/* Fallback pattern representing a QR Code */}
                         <div className={styles.qrPlaceholder}>
                             <div style={{ background: 'white', padding: '10px', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <span style={{ color: 'black', fontWeight: 'bold', textAlign: 'center' }}>
@@ -124,5 +122,14 @@ export default function GuestPass() {
                 <ThemeToggle />
             </div>
         </div>
+    );
+}
+
+// Wrap in Suspense — required by Next.js when using useSearchParams() in a page component
+export default function GuestPass() {
+    return (
+        <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--text-secondary)' }}>Loading...</div>}>
+            <GuestPassContent />
+        </Suspense>
     );
 }
