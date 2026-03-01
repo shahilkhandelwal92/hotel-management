@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Sidebar, NavItem } from "@/components/Sidebar";
 import { ThemeCustomizer } from "@/components/ThemeCustomizer";
 import { useIdleTimeout } from "@/hooks/useIdleTimeout";
+import { DemoModeBanner } from "@/components/DemoModeBanner";
 import styles from "./admin.module.css";
 
 const navItems: NavItem[] = [
@@ -111,6 +112,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         ))}
                     </div>
                 </header>
+                <DemoModeBanner />
                 <div style={{ flex: 1, overflowY: "auto", padding: "0" }}>
                     {children}
                 </div>
