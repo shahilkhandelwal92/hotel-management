@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import styles from "./restaurant.module.css";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -16,6 +16,12 @@ export default function RestaurantLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
+    const router = useRouter();
+
+    const handleLogout = async () => {
+        await fetch("/api/auth/logout", { method: "POST" });
+        router.push("/login");
+    };
 
     return (
         <div className={styles.restaurantLayout}>
@@ -49,6 +55,24 @@ export default function RestaurantLayout({
                             <div style={{ fontSize: "0.875rem", color: "var(--text-primary)", fontWeight: 500 }}>Head Chef</div>
                             <div style={{ fontSize: "0.75rem", color: "#10b981" }}>Kitchen Online</div>
                         </div>
+                        <button
+                            onClick={handleLogout}
+                            style={{
+                                background: "rgba(239, 68, 68, 0.1)",
+                                border: "1px solid rgba(239, 68, 68, 0.2)",
+                                color: "#ef4444",
+                                padding: "0.4rem 0.8rem",
+                                borderRadius: "8px",
+                                fontSize: "0.75rem",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                transition: "all 0.2s"
+                            }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#ef4444"; (e.currentTarget as HTMLElement).style.color = "#fff"; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(239, 68, 68, 0.1)"; (e.currentTarget as HTMLElement).style.color = "#ef4444"; }}
+                        >
+                            Logout
+                        </button>
                     </div>
                 </header>
                 <div className={styles.contentArea}>
