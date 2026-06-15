@@ -1,0 +1,181 @@
+.container {
+    min-height: 100vh;
+    background: var(--bg-primary);
+    padding: 4rem 2rem;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 4rem;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.8rem;
+    background: rgba(212, 175, 55, 0.1);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    border-radius: 30px;
+    color: var(--accent-gold);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+}
+
+.subtitle {
+    font-size: 1.25rem;
+    color: var(--text-secondary);
+    max-width: 700px;
+    margin: 1.5rem auto 0;
+}
+
+.contentGrid {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 2rem;
+}
+
+.mainCard {
+    padding: 2.5rem;
+}
+
+.sideCard {
+    padding: 2rem;
+}
+
+.cardHeader {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.iconGold {
+    color: var(--accent-gold);
+}
+
+.iconBlue {
+    color: var(--accent-blue);
+}
+
+.stackGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.stackItem {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.stackItem strong {
+    display: block;
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+}
+
+.stackItem p {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.successIcon {
+    color: var(--success);
+    margin-top: 4px;
+}
+
+.achieveList {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.achieveList li {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.achieveList strong {
+    color: var(--text-primary);
+}
+
+.smallText {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
+.badgeList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.miniBadge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.25rem 0.5rem;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    color: var(--text-secondary);
+}
+
+.toolLink {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.toolLink code {
+    color: var(--accent-blue);
+}
+
+.fullBtn {
+    width: 100%;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.fullBtn:hover {
+    background: var(--bg-secondary);
+    border-color: var(--accent-gold);
+    color: var(--accent-gold);
+}
+
+.footer {
+    margin-top: 5rem;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+@media (max-width: 768px) {
+    .contentGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .stackGrid {
+        grid-template-columns: 1fr;
+    }
+}

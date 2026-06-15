@@ -12,20 +12,25 @@ export default function CorporateLoginPage() {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
         setLoading(true);
 
-        setTimeout(() => {
-            const event = mockEvents.find(e => e.accessCode === accessCode.toUpperCase());
-            if (event) {
-                router.push(`/corporate/${event.id}`);
+        try {
+            const res = await fetch(`/api/events/verify/${accessCode.toUpperCase()}`);
+            const data = await res.json();
+
+            if (res.ok) {
+                router.push(`/corporate/${data.eventId}`);
             } else {
-                setError("Invalid Access Code. Please check and try again.");
-                setLoading(false);
+                setError(data.error || "Invalid Access Code. Please check and try again.");
             }
-        }, 1000);
+        } catch (err) {
+            setError("Server connection failed. Please try again.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

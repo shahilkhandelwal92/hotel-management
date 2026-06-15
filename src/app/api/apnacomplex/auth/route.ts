@@ -1,42 +1,52 @@
+import { SignJWT } from 'jose';
 import { NextResponse } from 'next/server';
-
-const VALID_API_KEYS = {
-    APNACOMPLEX_DEMO_KEY: 'apnacomplex-integration',
-};
 
 export async function POST(request: Request) {
     try {
-        const body = await request.json();
-        const { apiKey, hotelId } = body;
+        const apiKey = process.env.APNACOMPLEX_API_KEY;
+        const tokenSecret = process.env.APNACOMPLEX_JWT_SECRET || apiKey;
 
-        if (!apiKey || apiKey !== VALID_API_KEYS.APNACOMPLEX_DEMO_KEY) {
+        if (!apiKey || !tokenSecret || tokenSecret.length < 32) {
+            return NextResponse.json(
+                { error: 'Apnacomplex integration is not configured' },
+                { status: 503 },
+            );
+        }
+
+        const body = await request.json();
+        const { apiKey: suppliedApiKey, hotelId } = body;
+
+        if (typeof suppliedApiKey !== 'string' || suppliedApiKey !== apiKey) {
             return NextResponse.json(
                 { error: 'Unauthorized: Invalid or missing API Key' },
-                { status: 401 }
+                { status: 401 },
             );
         }
 
-        if (!hotelId) {
+        if (typeof hotelId !== 'string' || !hotelId) {
             return NextResponse.json(
                 { error: 'Bad Request: hotelId is required' },
-                { status: 400 }
+                { status: 400 },
             );
         }
 
-        // Generate a temporary access token for the session (Simulated)
-        const token = `thm_${Math.random().toString(36).substring(2, 15)}`;
+        const token = await new SignJWT({ hotelId })
+            .setProtectedHeader({ alg: 'HS256' })
+            .setIssuer('hotel-management')
+            .setAudience('apnacomplex')
+            .setIssuedAt()
+            .setExpirationTime('1h')
+            .sign(new TextEncoder().encode(tokenSecret));
 
         return NextResponse.json({
             success: true,
             token,
-            expiresIn: 3600, // 1 hour
-            message: 'Authentication successful. Use this token for subsequent API calls.'
+            expiresIn: 3600,
         });
-
-    } catch (error) {
+    } catch {
         return NextResponse.json(
             { error: 'Internal Server Error' },
-            { status: 500 }
+            { status: 500 },
         );
     }
 }

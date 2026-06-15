@@ -1,0 +1,167 @@
+.container {
+    min-height: 100vh;
+    padding: 4rem 2rem;
+    background: radial-gradient(circle at top right, rgba(212, 175, 55, 0.05), transparent),
+        radial-gradient(circle at bottom left, rgba(42, 92, 141, 0.05), transparent);
+}
+
+.hero {
+    text-align: center;
+    max-width: 800px;
+    margin: 0 auto 5rem;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background: rgba(212, 175, 55, 0.1);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    border-radius: 30px;
+    color: var(--accent-gold);
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 2rem;
+}
+
+.heroSubtitle {
+    margin-top: 1.5rem;
+    font-size: 1.25rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.heroCta {
+    margin-top: 3rem;
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+}
+
+.secondaryBtn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.875rem 2rem;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.secondaryBtn:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--text-primary);
+}
+
+/* Bento Grid */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 240px;
+    gap: 1.5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.card {
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    transition: transform 0.3s ease, border-color 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    border-color: var(--accent-gold);
+}
+
+.card[data-size="large"] {
+    grid-column: span 2;
+    grid-row: span 2;
+}
+
+.card[data-size="medium"] {
+    grid-column: span 2;
+    grid-row: span 1;
+}
+
+.cardHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    position: absolute;
+    top: 2rem;
+    left: 2rem;
+    right: 2rem;
+}
+
+.iconWrapper {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+}
+
+.iconGold {
+    color: var(--accent-gold);
+}
+
+.iconBlue {
+    color: var(--accent-blue);
+}
+
+.category {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+.cardTitle {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.cardDesc {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.footer {
+    max-width: 1200px;
+    margin: 5rem auto 0;
+}
+
+@media (max-width: 1024px) {
+    .grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .grid {
+        grid-template-columns: 1fr;
+        grid-auto-rows: auto;
+    }
+
+    .card[data-size="large"],
+    .card[data-size="medium"] {
+        grid-column: span 1;
+    }
+
+    .heroCta {
+        flex-direction: column;
+    }
+}

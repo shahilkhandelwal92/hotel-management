@@ -8,6 +8,8 @@ import { useIdleTimeout } from "@/hooks/useIdleTimeout";
 const navItems: NavItem[] = [
     { label: "Global Leads (CRM)", path: "/owner/leads", icon: "🎯" },
     { label: "Financial FY Report", path: "/owner/finance", icon: "📈" },
+    { label: "─ HR & Ops", section: true, icon: "" },
+    { label: "Internal Team", path: "/owner/team", icon: "👥" },
     { label: "─ Reports", section: true, icon: "" },
     { label: "GST Report (GSTR-1/3B)", path: "/owner/reports/gst", icon: "📄" },
     { label: "Financial P&L", path: "/owner/reports/financial", icon: "💰" },
@@ -61,7 +63,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
     };
 
     return (
-        <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-primary)" }}>
+        <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-overlay)" }}>
             {showWarning && (
                 <IdleWarningModal
                     countdown={countdown}

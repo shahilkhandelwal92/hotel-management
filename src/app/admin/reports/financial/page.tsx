@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Button from "@/components/ui/Button";
+import Table from "@/components/ui/Table";
+import Card from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
 
 const fmt = (n: number) => "₹" + n.toLocaleString("en-IN");
 const cr = (n: number) => `₹${(n / 10000000).toFixed(2)} Cr`;
@@ -25,13 +29,9 @@ export default function AdminFinancialReportPage() {
             .then(d => { setData(d); setLoading(false); });
     }, [hotelId]);
 
-    if (loading || !data) return <div style={{ padding: "4rem", textAlign: "center" }}>Loading Financial Report...</div>;
-
-    const hotel = hotels.find(h => h.id === hotelId);
-    const s = data.summary;
-
     const exportCSV = () => {
         if (!data?.monthlyTrend) return;
+        const hotel = hotels.find(h => h.id === hotelId);
         const rows = [["Month", "Room Revenue", "Restaurant", "Events", "Total", "Expenses", "Profit", "TDS"],
         ...data.monthlyTrend.map((m: any) => {
             const total = m.roomRev + m.restRev + m.eventRev;
@@ -42,83 +42,95 @@ export default function AdminFinancialReportPage() {
         a.download = `financial_report_${hotel?.name ?? "hotel"}_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     };
 
+    if (loading || !data) return <div style={{ padding: "4rem", textAlign: "center", color: 'var(--text-secondary)' }}>Loading Financial Intelligence...</div>;
+
+    const s = data.summary;
+
     return (
-        <div style={{ padding: "2rem", maxWidth: 1100 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2rem", flexWrap: "wrap", gap: "1rem" }}>
+        <div className="animate-fade-in" style={{ padding: '0 1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem' }}>
                 <div>
-                    <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0 }}>Financial Report — {hotel?.name ?? "Loading..."}</h1>
-                    <p style={{ color: "var(--text-secondary)", margin: "0.3rem 0 0" }}>FY {data.fiscalYear} · {hotel?.location}</p>
+                    <h1 style={{ fontSize: '2rem', margin: 0 }}>Executive Financial Insights</h1>
+                    <p style={{ color: 'var(--text-secondary)', marginTop: '0.4rem' }}>
+                        Fiscal Year {data.fiscalYear} &bull; Comparative Profit & Loss analysis.
+                    </p>
                 </div>
-                <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-                    {hotels.length > 1 && <select value={hotelId} onChange={e => setHotelId(e.target.value)} style={{ padding: "0.5rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border-color)", background: "var(--bg-primary)", color: "var(--text-primary)", fontSize: "0.875rem" }}>
-                        {hotels.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
-                    </select>}
-                    <button onClick={exportCSV} style={{ padding: "0.7rem 1.5rem", background: "#3b82f6", color: "white", border: "none", borderRadius: "8px", fontWeight: 600, cursor: "pointer" }}>⬇️ Export CSV</button>
+                <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+                    {hotels.length > 1 && (
+                        <select
+                            value={hotelId}
+                            onChange={e => setHotelId(e.target.value)}
+                            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', padding: '0.5rem 0.8rem', borderRadius: '8px' }}
+                        >
+                            {hotels.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+                        </select>
+                    )}
+                    <Button variant="primary" size="sm" onClick={exportCSV}>Export FY Statement</Button>
                 </div>
             </div>
 
-            {/* P&L Summary Cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-                {[
-                    { label: "Total Revenue", value: cr(s.totalRevenue), color: "#3b82f6" },
-                    { label: "Room Revenue", value: cr(s.roomRevenue), color: "#8b5cf6" },
-                    { label: "Restaurant", value: cr(s.restaurantRevenue), color: "#f59e0b" },
-                    { label: "Events", value: cr(s.eventRevenue), color: "#06b6d4" },
-                    { label: "Total Expenses", value: cr(s.totalExpenses), color: "#ef4444" },
-                    { label: "Net Profit", value: cr(s.netProfit), color: "#10b981", sub: `Margin: ${s.netProfitMargin}%` },
-                ].map((c, i) => (
-                    <div key={i} style={{ padding: "1.2rem", background: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
-                        <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "0.4rem" }}>{c.label}</div>
-                        <div style={{ fontSize: "1.5rem", fontWeight: 700, color: c.color }}>{c.value}</div>
-                        {c.sub && <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)" }}>{c.sub}</div>}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.2rem', marginBottom: '2.5rem' }}>
+                <Card title="Total Revenue" subtitle="Gross income across all channels">
+                    <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--accent-blue)' }}>{cr(s.totalRevenue)}</div>
+                </Card>
+                <Card title="Operational Profit" subtitle="Earnings before interest/tax">
+                    <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#10b981' }}>{cr(s.netProfit)}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>Margin: {s.netProfitMargin}%</div>
+                </Card>
+                <Card title="Total Expenses" subtitle="Opex & Maintenance cost">
+                    <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#ef4444' }}>{cr(s.totalExpenses)}</div>
+                </Card>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '2.5rem' }}>
+                <Card title="Room Revenue" subtitle="Accommodations">
+                    <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{cr(s.roomRevenue)}</div>
+                </Card>
+                <Card title="F&B Revenue" subtitle="Restaurant & Room Service">
+                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-gold)' }}>{cr(s.restaurantRevenue)}</div>
+                </Card>
+                <Card title="MICE Revenue" subtitle="Events & Banquets">
+                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#06b6d4' }}>{cr(s.eventRevenue)}</div>
+                </Card>
+            </div>
+
+            <Card title="Monthly Performance Trend" subtitle="Comparative analysis of revenue vs expenses">
+                <Table
+                    headers={["Month", "Room Rev", "F&B Rev", "Events", "Total Gross", "Expenses", "Monthly Profit"]}
+                    loading={loading}
+                >
+                    {data.monthlyTrend.map((m: any, i: number) => {
+                        const totalRev = m.roomRev + m.restRev + m.eventRev;
+                        const profit = totalRev - m.expenses;
+                        return (
+                            <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                <td style={{ padding: '1rem 1.5rem', fontWeight: 600 }}>{m.month}</td>
+                                <td style={{ padding: '1rem 1.5rem' }}>{fmt(m.roomRev)}</td>
+                                <td style={{ padding: '1rem 1.5rem' }}>{fmt(m.restRev)}</td>
+                                <td style={{ padding: '1rem 1.5rem' }}>{fmt(m.eventRev)}</td>
+                                <td style={{ padding: '1rem 1.5rem', fontWeight: 700, color: 'var(--accent-blue)' }}>{fmt(totalRev)}</td>
+                                <td style={{ padding: '1rem 1.5rem', color: '#ef4444' }}>{fmt(m.expenses)}</td>
+                                <td style={{ padding: '1rem 1.5rem' }}>
+                                    <Badge variant={profit > 0 ? "success" : "danger"}>{fmt(profit)}</Badge>
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </Table>
+            </Card>
+
+            <div style={{ marginTop: '2.5rem' }}>
+                <Card title="Tax Deducted at Source (TDS)" subtitle="Regulatory compliance summary">
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+                        {data.tdsBreakdown.map((t: any, i: number) => (
+                            <div key={i} style={{ padding: '1.2rem', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{t.section}</div>
+                                <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--accent-gold)' }}>{fmt(t.amount)}</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>Deduction Rate: {t.rate}</div>
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
-
-            {/* Monthly Table */}
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "1rem" }}>Monthly Breakdown</h2>
-            <div style={{ overflowX: "auto", marginBottom: "2rem" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
-                    <thead>
-                        <tr style={{ background: "var(--bg-secondary)" }}>
-                            {["Month", "Room", "Restaurant", "Events", "Total Revenue", "Expenses", "Profit", "TDS"].map(h => (
-                                <th key={h} style={{ padding: "0.8rem", textAlign: "right", color: "var(--text-secondary)", fontWeight: 600, borderBottom: "1px solid var(--border-color)" }}>{h}</th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {data.monthlyTrend.map((m: any, i: number) => {
-                            const totalRev = m.roomRev + m.restRev + m.eventRev;
-                            const profit = totalRev - m.expenses;
-                            return (
-                                <tr key={i} style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                    <td style={{ padding: "0.7rem 0.8rem", fontWeight: 600, textAlign: "right" }}>{m.month}</td>
-                                    <td style={{ padding: "0.7rem 0.8rem", textAlign: "right" }}>{fmt(m.roomRev)}</td>
-                                    <td style={{ padding: "0.7rem 0.8rem", textAlign: "right" }}>{fmt(m.restRev)}</td>
-                                    <td style={{ padding: "0.7rem 0.8rem", textAlign: "right" }}>{fmt(m.eventRev)}</td>
-                                    <td style={{ padding: "0.7rem 0.8rem", textAlign: "right", fontWeight: 700, color: "#3b82f6" }}>{fmt(totalRev)}</td>
-                                    <td style={{ padding: "0.7rem 0.8rem", textAlign: "right", color: "#ef4444" }}>{fmt(m.expenses)}</td>
-                                    <td style={{ padding: "0.7rem 0.8rem", textAlign: "right", color: profit > 0 ? "#10b981" : "#ef4444", fontWeight: 600 }}>{fmt(profit)}</td>
-                                    <td style={{ padding: "0.7rem 0.8rem", textAlign: "right", color: "#94a3b8" }}>{fmt(m.tds)}</td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* TDS */}
-            <div style={{ padding: "1.5rem", background: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
-                <h3 style={{ margin: "0 0 1rem" }}>TDS Deductions — Income Tax Act 1961</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
-                    {data.tdsBreakdown.map((t: any, i: number) => (
-                        <div key={i} style={{ padding: "1rem", background: "var(--bg-primary)", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
-                            <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.3rem" }}>{t.section}</div>
-                            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Rate: {t.rate}</div>
-                            <div style={{ fontSize: "1.2rem", fontWeight: 700, color: "#f59e0b", marginTop: "0.5rem" }}>{fmt(t.amount)}</div>
-                        </div>
-                    ))}
-                </div>
+                </Card>
             </div>
         </div>
     );

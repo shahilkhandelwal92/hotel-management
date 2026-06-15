@@ -1,42 +1,67 @@
+import { jwtVerify } from 'jose';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
     try {
-        const authHeader = request.headers.get('Authorization');
+        const tokenSecret = process.env.APNACOMPLEX_JWT_SECRET || process.env.APNACOMPLEX_API_KEY;
+        if (!tokenSecret || tokenSecret.length < 32) {
+            return NextResponse.json(
+                { error: 'Apnacomplex integration is not configured' },
+                { status: 503 },
+            );
+        }
 
-        // Simplistic token validation for demo purposes
-        if (!authHeader || !authHeader.startsWith('Bearer thm_')) {
+        const authHeader = request.headers.get('Authorization');
+        const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+        if (!token) {
             return NextResponse.json(
                 { error: 'Unauthorized: Invalid or missing Bearer token' },
-                { status: 401 }
+                { status: 401 },
             );
+        }
+
+        const { payload } = await jwtVerify(
+            token,
+            new TextEncoder().encode(tokenSecret),
+            {
+                algorithms: ['HS256'],
+                issuer: 'hotel-management',
+                audience: 'apnacomplex',
+            },
+        );
+
+        if (typeof payload.hotelId !== 'string' || !payload.hotelId) {
+            return NextResponse.json({ error: 'Unauthorized token scope' }, { status: 401 });
         }
 
         const body = await request.json();
-        const { societyId, blockId, unitId, amount, description } = body;
+        const { societyId, unitId, amount, description } = body;
+        const numericAmount = Number(amount);
 
-        // Validate incoming payload from Apnacomplex
-        if (!societyId || !unitId || !amount) {
+        if (
+            typeof societyId !== 'string' ||
+            typeof unitId !== 'string' ||
+            !Number.isFinite(numericAmount) ||
+            numericAmount <= 0
+        ) {
             return NextResponse.json(
-                { error: 'Bad Request: Missing required Apnacomplex billing fields' },
-                { status: 400 }
+                { error: 'Bad Request: Invalid Apnacomplex billing fields' },
+                { status: 400 },
             );
         }
 
-        // Logic to sync the hotel bill directly to an Apnacomplex resident's monthly maintenance block
-        // i.e., "Guest charged ₹4500 to Room 402, sync to Apnacomplex Unit A-402 for month-end billing"
-
         return NextResponse.json({
             success: true,
-            transactionId: `tx_live_${Math.random().toString(36).substring(2, 10)}`,
+            hotelId: payload.hotelId,
+            transactionId: crypto.randomUUID(),
             syncedAt: new Date().toISOString(),
-            message: `Successfully synchronized ₹${amount} charge to Apnacomplex Unit ${unitId}`
+            amount: numericAmount,
+            description: typeof description === 'string' ? description : null,
         });
-
-    } catch (error) {
+    } catch {
         return NextResponse.json(
-            { error: 'Internal Server Error' },
-            { status: 500 }
+            { error: 'Unauthorized: Invalid or expired Bearer token' },
+            { status: 401 },
         );
     }
 }

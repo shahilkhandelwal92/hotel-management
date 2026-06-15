@@ -1,0 +1,136 @@
+.root {
+    position: relative;
+    z-index: 45;
+    padding: 0.75rem;
+}
+
+.trigger {
+    width: 100%;
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.055);
+    color: rgba(255, 255, 255, 0.62);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.trigger:hover {
+    border-color: rgba(184, 175, 255, 0.25);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 11px;
+    background: rgba(104, 87, 245, 0.22);
+    color: #cfc9ff;
+}
+
+.copy {
+    min-width: 0;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+}
+
+.copy small {
+    color: rgba(236, 234, 253, 0.4);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.copy strong {
+    overflow: hidden;
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.menu {
+    position: absolute;
+    top: calc(100% - 0.25rem);
+    left: 0.75rem;
+    right: 0.75rem;
+    overflow: hidden;
+    padding: 0.35rem;
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 14px;
+    background: #211d31;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.42);
+}
+
+.option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.65rem 0.7rem;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: rgba(236, 234, 253, 0.72);
+    cursor: pointer;
+    text-align: left;
+}
+
+.option:hover,
+.option[aria-selected="true"] {
+    background: rgba(104, 87, 245, 0.14);
+    color: #fff;
+}
+
+.option span,
+.option strong,
+.option small {
+    min-width: 0;
+    display: block;
+}
+
+.option strong {
+    overflow: hidden;
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.option small {
+    margin-top: 0.12rem;
+    overflow: hidden;
+    color: rgba(236, 234, 253, 0.4);
+    font-size: 0.62rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.collapsed {
+    padding-inline: 0.8rem;
+}
+
+.collapsed .trigger {
+    min-height: 46px;
+    justify-content: center;
+    padding: 0.35rem;
+}
+
+.spin {
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

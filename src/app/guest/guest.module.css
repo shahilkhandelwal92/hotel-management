@@ -1,133 +1,798 @@
-.guestContainer {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-    background: radial-gradient(circle at center, rgba(16, 185, 129, 0.1), transparent 70%);
+.page {
+  min-height: 100vh;
+  padding-bottom: 4rem;
 }
 
-.ticket {
-    width: 100%;
-    max-width: 400px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--glass-border);
-    border-radius: 24px;
-    overflow: hidden;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-    position: relative;
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem clamp(1rem, 4vw, 2rem);
+  border-bottom: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-primary) 86%, transparent);
+  backdrop-filter: blur(18px);
 }
 
-.ticketHeader {
-    padding: 2rem;
-    text-align: center;
-    background: rgba(255, 255, 255, 0.02);
-    border-bottom: 2px dashed rgba(255, 255, 255, 0.1);
+.hotelBrand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
 }
 
-.hotelName {
-    color: var(--accent-gold);
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    font-size: 0.875rem;
-    margin-bottom: 0.5rem;
+.hotelBrand > span {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+  color: #fff;
 }
 
-.bookingInfo {
-    margin-top: 1rem;
+.hotelBrand div {
+  display: grid;
 }
 
-.bookingInfo h2 {
-    font-size: 1.5rem;
-    margin-bottom: 0.25rem;
+.hotelBrand strong {
+  font-size: 0.88rem;
 }
 
-.qrSection {
-    padding: 3rem 2rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+.hotelBrand small {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+  font-size: 0.68rem;
 }
 
-.qrWrapper {
-    width: 220px;
-    height: 220px;
-    background: white;
-    padding: 1rem;
-    border-radius: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.topActions > button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.content {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.alertError,
+.alertSuccess {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid;
+  border-radius: 13px;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.alertError {
+  border-color: rgba(220, 63, 93, 0.2);
+  background: rgba(220, 63, 93, 0.08);
+  color: var(--error);
+}
+
+.alertSuccess {
+  border-color: rgba(22, 143, 115, 0.2);
+  background: rgba(22, 143, 115, 0.08);
+  color: var(--success);
+}
+
+.alertError button,
+.alertSuccess button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 1.15rem;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.35fr 0.65fr;
+  gap: 1.2rem;
+  overflow: hidden;
+  padding: clamp(1.5rem, 5vw, 3.5rem);
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(circle at 75% 10%, rgba(255, 107, 122, 0.24), transparent 17rem),
+    linear-gradient(140deg, #171426, #2f225a);
+  box-shadow: var(--shadow-lg);
+  color: #fff;
+}
+
+.heroCopy {
+  align-self: center;
+}
+
+.eyebrow,
+.sectionHeading span {
+  color: #c9c2ff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  max-width: 650px;
+  margin-top: 0.7rem;
+  color: #fff;
+}
+
+.heroCopy > p {
+  max-width: 600px;
+  margin-top: 1rem;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1.5rem;
+}
+
+.roomCard {
+  align-self: stretch;
+  padding: 1.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.roomTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.76rem;
+}
+
+.roomCard > strong {
+  display: block;
+  margin-top: 1.1rem;
+  color: #fff;
+  font-size: clamp(3rem, 7vw, 5.6rem);
+  font-weight: 800;
+  letter-spacing: -0.08em;
+  line-height: 0.9;
+}
+
+.roomCard > p {
+  margin-top: 0.5rem;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.78rem;
+}
+
+.stayMeta {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.55rem;
+  margin-top: 1.5rem;
+}
+
+.stayMeta div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.stayMeta small {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.62rem;
+}
+
+.stayMeta span {
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.quickGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.quickCard {
+  min-height: 88px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.quickCard > span,
+.serviceCard > span {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+}
+
+.quickCard div {
+  display: grid;
+}
+
+.quickCard strong {
+  font-size: 0.84rem;
+}
+
+.quickCard small {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+.quickViolet > span {
+  background: rgba(104, 87, 245, 0.11);
+  color: var(--brand-primary);
+}
+
+.quickMint > span {
+  background: rgba(44, 201, 165, 0.12);
+  color: var(--success);
+}
+
+.quickCoral > span {
+  background: rgba(255, 107, 122, 0.12);
+  color: var(--brand-coral);
+}
+
+.orderTracker {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 1rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid rgba(104, 87, 245, 0.18);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(104, 87, 245, 0.1), rgba(168, 85, 247, 0.06));
+}
+
+.orderIcon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--brand-primary);
+  color: #fff;
+}
+
+.orderTracker > div:nth-child(2) {
+  display: grid;
+}
+
+.orderTracker small,
+.orderTracker p {
+  font-size: 0.7rem;
+}
+
+.orderTracker strong {
+  font-size: 0.9rem;
+}
+
+.section {
+  margin-top: 2.8rem;
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+}
+
+.sectionHeading span {
+  color: var(--brand-primary);
+}
+
+.sectionHeading h2 {
+  margin-top: 0.2rem;
+}
+
+.sectionHeading > p {
+  max-width: 340px;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.serviceGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.8rem;
+}
+
+.serviceCard {
+  min-height: 142px;
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.serviceCard:disabled {
+  opacity: 0.55;
+}
+
+.serviceCard[data-color="violet"] > span {
+  background: rgba(104, 87, 245, 0.11);
+  color: var(--brand-primary);
+}
+
+.serviceCard[data-color="mint"] > span {
+  background: rgba(44, 201, 165, 0.12);
+  color: var(--success);
+}
+
+.serviceCard[data-color="coral"] > span {
+  background: rgba(255, 107, 122, 0.12);
+  color: var(--brand-coral);
+}
+
+.serviceCard[data-color="yellow"] > span {
+  background: rgba(246, 196, 83, 0.17);
+  color: var(--warning);
+}
+
+.serviceCard strong {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+}
+
+.serviceCard small {
+  margin-top: 0.2rem;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+.requestList {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.requestList > div {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+
+.requestCheck {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--surface-soft);
+  color: var(--brand-primary);
+}
+
+.requestList div div {
+  display: grid;
+}
+
+.requestList strong {
+  font-size: 0.78rem;
+}
+
+.requestList small {
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+}
+
+.amenityGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.8rem;
+}
+
+.amenityCard {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.amenityIcon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: rgba(168, 85, 247, 0.1);
+  color: var(--brand-secondary);
+}
+
+.amenityCard div {
+  display: grid;
+}
+
+.amenityCard strong {
+  font-size: 0.82rem;
+}
+
+.amenityCard small {
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+}
+
+.empty {
+  grid-column: 1 / -1;
+  padding: 2rem;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.bookings {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.bookings > div {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--brand-primary);
+}
+
+.bookings span {
+  display: grid;
+  color: var(--text-primary);
+}
+
+.bookings strong {
+  font-size: 0.78rem;
+}
+
+.bookings small {
+  color: var(--text-secondary);
+  font-size: 0.66rem;
+}
+
+.billBanner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2.8rem;
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--surface-accent), rgba(255, 107, 122, 0.08));
+}
+
+.billIcon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: var(--brand-primary);
+  color: #fff;
+}
+
+.billBanner div {
+  display: grid;
+}
+
+.billBanner small {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+.billBanner strong {
+  font-size: 1.4rem;
+}
+
+.billBanner p {
+  font-size: 0.72rem;
+}
+
+.modalForm {
+  display: grid;
+  gap: 1rem;
+}
+
+.modalForm label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.modalForm p {
+  font-size: 0.76rem;
+}
+
+.priceNote {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.8rem;
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--brand-primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.paymentModal {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.balanceBlock {
+  display: grid;
+  margin-bottom: 0.5rem;
+  padding: 1rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--surface-accent), var(--surface-soft));
+}
+
+.balanceBlock small {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+.balanceBlock strong {
+  font-size: 2rem;
+}
+
+.transaction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.transaction div {
+  display: grid;
+}
+
+.transaction strong,
+.transaction > span {
+  font-size: 0.78rem;
+}
+
+.transaction small {
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+}
+
+.credit {
+  color: var(--success);
+}
+
+.paymentChoices {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.paymentChoices button {
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 13px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.paymentChoices button > span {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--brand-primary);
+}
+
+.paymentChoices button div {
+  display: grid;
+}
+
+.paymentChoices strong {
+  font-size: 0.8rem;
+}
+
+.paymentChoices small {
+  color: var(--text-secondary);
+  font-size: 0.67rem;
+}
+
+.centerState,
+.eventPage {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 0.7rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.centerState p {
+  max-width: 420px;
+}
+
+.loadingMark,
+.errorMark {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  margin: 0 auto 0.5rem;
+  place-items: center;
+  border-radius: 17px;
+}
+
+.loadingMark {
+  background: var(--surface-accent);
+  color: var(--brand-primary);
+}
+
+.errorMark {
+  background: rgba(220, 63, 93, 0.1);
+  color: var(--error);
+}
+
+.eventPass {
+  width: min(100%, 430px);
+  padding: 2rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg);
+}
+
+.eventBrand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  color: var(--brand-primary);
+  font-weight: 800;
+}
+
+.eventPass h1 {
+  margin-top: 1rem;
 }
 
 .qrPlaceholder {
-    width: 100%;
-    height: 100%;
-    background: repeating-linear-gradient(45deg,
-            #000,
-            #000 10px,
-            #fff 10px,
-            #fff 20px);
-    opacity: 0.8;
+  width: 190px;
+  height: 190px;
+  display: grid;
+  margin: 1.5rem auto;
+  place-items: center;
+  border: 14px solid #fff;
+  border-radius: 18px;
+  background:
+    repeating-linear-gradient(45deg, #171527 0 8px, #fff 8px 16px);
+  box-shadow: var(--shadow-md);
+  color: #fff;
+  font-weight: 900;
+  text-shadow: 0 1px 8px #000;
 }
 
-.statusText {
-    margin-top: 2rem;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    text-align: center;
+@media (max-width: 850px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .quickGrid,
+  .amenityGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .serviceGrid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
-.actionSection {
-    padding: 0 2rem 2rem 2rem;
-    display: flex;
+@media (max-width: 560px) {
+  .content {
+    padding: 0.85rem;
+  }
+
+  .hero {
+    padding: 1.35rem;
+    border-radius: 22px;
+  }
+
+  .hero h1 {
+    font-size: 2rem;
+  }
+
+  .sectionHeading {
+    align-items: flex-start;
     flex-direction: column;
-    gap: 1rem;
-}
+  }
 
-.actionBtn {
+  .sectionHeading > p {
+    text-align: left;
+  }
+
+  .billBanner {
+    grid-template-columns: auto 1fr;
+  }
+
+  .billBanner > button {
+    grid-column: 1 / -1;
     width: 100%;
-    padding: 1rem;
-    border-radius: 12px;
-    font-weight: 600;
-    text-align: center;
-    border: none;
-    cursor: pointer;
-    transition: transform 0.2s, opacity 0.2s;
-    text-decoration: none;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 0.5rem;
-}
+  }
 
-.actionBtn:hover {
-    transform: translateY(-2px);
-    opacity: 0.9;
-}
-
-.primaryBtn {
-    background: linear-gradient(135deg, var(--accent-gold), #b8962e);
-    color: #000;
-}
-
-.zomatoBtn {
-    background: #E23744;
-    color: white;
-}
-
-.swiggyBtn {
-    background: #FC8019;
-    color: white;
-}
-
-.deliveryHeader {
-    text-align: center;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.5rem;
-    border-top: 1px solid var(--border-color);
-    padding-top: 1.5rem;
+  .hotelBrand small {
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }

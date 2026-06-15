@@ -1,3 +1,4 @@
+import Link from "next/link";
 import styles from "./page.module.css";
 
 export default function Home() {
@@ -14,10 +15,13 @@ export default function Home() {
             Manage guests, amenities, dynamic billing, and staff all in one intuitive dashboard.
           </p>
           <div className={styles.ctaGroup}>
-            <button className="btn-primary">View Dashboard</button>
-            <button className="glass-panel" style={{ padding: '0.875rem 2rem', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', cursor: 'pointer', background: 'transparent' }}>
-              Guest Access
-            </button>
+            <Link href="/login" className="btn-primary">Get Started</Link>
+            <Link href="/showcase" className="glass-panel" style={{ padding: '0.875rem 2rem', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', cursor: 'pointer', background: 'transparent' }}>
+              Project Showcase
+            </Link>
+            <Link href="/presentation" className="glass-panel" style={{ padding: '0.875rem 2rem', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', cursor: 'pointer', background: 'transparent' }}>
+              Presentation
+            </Link>
           </div>
         </div>
       </div>

@@ -1,118 +1,194 @@
 "use client";
 
 import { useState } from "react";
-import styles from "./login.module.css";
 import { useRouter } from "next/navigation";
+import {
+    ArrowRight,
+    BriefcaseBusiness,
+    Building2,
+    ChefHat,
+    Eye,
+    EyeOff,
+    Hotel,
+    KeyRound,
+    ShieldCheck,
+    Sparkles,
+    UserRound,
+    WalletCards,
+} from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import styles from "./login.module.css";
+
+const demoAccounts = [
+    { label: "Chain admin", email: "client.admin@demo.com", icon: ShieldCheck },
+    { label: "Hotel admin", email: "hotel.admin@demo.com", icon: Hotel },
+    { label: "Hotel staff", email: "staff@demo.com", icon: UserRound },
+    { label: "Restaurant", email: "kitchen@demo.com", icon: ChefHat },
+    { label: "Corporate", email: "corporate@demo.com", icon: BriefcaseBusiness },
+    { label: "Accounts", email: "accounting@demo.com", icon: WalletCards },
+];
+
+function getHomeForRoles(roles: string[]) {
+    if (roles.some((role) => ["SUPER_ADMIN", "OWNER"].includes(role))) return "/admin/dashboard";
+    if (roles.includes("ACCOUNTING")) return "/admin/reports/analytics";
+    if (roles.includes("HOTEL_ADMIN")) return "/admin/reservations";
+    if (roles.some((role) => ["KITCHEN", "RESTAURANT"].includes(role))) return "/restaurant/orders";
+    if (roles.some((role) => ["STAFF", "HOUSEKEEPING", "FRONT_DESK"].includes(role))) return "/staff/dashboard";
+    if (roles.includes("CORPORATE")) return "/corporate/dashboard";
+    return "/guest";
+}
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const router = useRouter();
+    const showDemoAccounts = process.env.NODE_ENV !== "production";
 
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleLogin = async (event: React.FormEvent) => {
+        event.preventDefault();
         setLoading(true);
         setError("");
 
         try {
-            const res = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
+            const response = await fetch("/api/auth/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
             });
+            const data = await response.json();
 
-            const data = await res.json();
-
-            if (!res.ok) {
-                setError(data.error || "Login failed");
-                setLoading(false);
+            if (!response.ok) {
+                setError(data.error || "We could not sign you in.");
                 return;
             }
 
-            // Route based on roles array
-            const roles = data.user.roles || [];
-            if (roles.includes("OWNER") || roles.includes("SUPER_ADMIN")) {
-                router.push("/admin/dashboard");
-            } else if (roles.includes("STAFF")) {
-                router.push("/staff/dashboard");
-            } else if (roles.includes("KITCHEN")) {
-                router.push("/restaurant/orders");
-            } else if (roles.includes("CORPORATE")) {
-                router.push("/corporate");
-            } else {
-                router.push("/guest");
-            }
-
-        } catch (err) {
-            setError("Network error occurred.");
+            router.replace(getHomeForRoles(data.user.roles || []));
+            router.refresh();
+        } catch {
+            setError("The server is not reachable. Please try again.");
+        } finally {
             setLoading(false);
         }
     };
 
+    const fillDemoAccount = (accountEmail: string) => {
+        setEmail(accountEmail);
+        setPassword("Client@2026");
+        setError("");
+    };
+
     return (
-        <div className={styles.loginContainer}>
-            <div style={{ position: 'absolute', top: '2rem', right: '2rem', display: 'flex', alignItems: 'center' }}>
+        <main className={styles.page}>
+            <div className={styles.topActions}>
                 <LanguageSwitcher />
                 <ThemeToggle />
             </div>
-            <div className={`glass-panel animate-fade-in ${styles.loginCard}`} style={{ maxWidth: '400px', width: '100%', padding: '3rem' }}>
-                <div className={styles.header}>
-                    <h2>Welcome Back</h2>
-                    <p>Sign in to your Hotel Management account</p>
+
+            <section className={styles.storyPanel}>
+                <div className={styles.brand}>
+                    <span className={styles.brandMark}><Building2 size={24} /></span>
+                    <span>StayOS</span>
                 </div>
 
-                <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '2rem' }}>
+                <div className={styles.storyContent}>
+                    <div className={styles.eyebrow}><Sparkles size={15} /> One workspace. Every stay.</div>
+                    <h1>Hospitality operations that feel effortless.</h1>
+                    <p>
+                        Run every property, delight every guest, and give every team member exactly
+                        the tools they need.
+                    </p>
+                    <div className={styles.highlights}>
+                        <div><span>01</span> Multi-property command center</div>
+                        <div><span>02</span> Guest ordering and self checkout</div>
+                        <div><span>03</span> People, payroll, POS, and finance</div>
+                    </div>
+                </div>
 
-                    {error && <div style={{ color: '#ef4444', fontSize: '0.9rem', textAlign: 'center', background: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: '4px' }}>{error}</div>}
-
+                <div className={styles.liveCard}>
                     <div>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Email Address</label>
-                        <input
-                            type="email"
-                            required
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-                            placeholder="admin@grandimperial.com"
-                        />
+                        <span className={styles.liveDot} />
+                        Operations live
+                    </div>
+                    <strong>One secure sign-in for every role</strong>
+                </div>
+            </section>
+
+            <section className={styles.formPanel}>
+                <div className={styles.formWrap}>
+                    <div className={styles.formHeader}>
+                        <div className={styles.mobileBrand}><Building2 size={21} /> StayOS</div>
+                        <div className={styles.eyebrow}>Secure workspace</div>
+                        <h2>Welcome back</h2>
+                        <p>Sign in to continue to your assigned hotel workspace.</p>
                     </div>
 
-                    <div>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Password</label>
-                        <input
-                            type="password"
-                            required
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-                            placeholder="••••••••"
-                        />
-                    </div>
+                    <form onSubmit={handleLogin} className={styles.form}>
+                        {error && <div className={styles.error} role="alert">{error}</div>}
 
-                    <button type="submit" disabled={loading} className={`btn-primary ${styles.submitBtn}`} style={{ minHeight: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{loading ? 'Authenticating...' : 'Sign In'}</span>
-                    </button>
+                        <label className={styles.fieldGroup}>
+                            <span>Email address</span>
+                            <span className={styles.inputWrap}>
+                                <UserRound size={18} />
+                                <input
+                                    type="email"
+                                    required
+                                    autoComplete="email"
+                                    value={email}
+                                    onChange={(event) => setEmail(event.target.value)}
+                                    placeholder="you@hotel.com"
+                                />
+                            </span>
+                        </label>
 
-                    <div style={{ marginTop: '1.5rem' }}>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <div style={{ height: '1px', background: 'var(--border-color)', flex: 1 }}></div>
-                            Public Portals
-                            <div style={{ height: '1px', background: 'var(--border-color)', flex: 1 }}></div>
-                        </div>
-                        <button type="button" onClick={() => router.push('/book-event')} style={{ width: '100%', minHeight: '60px', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s', gap: '1rem' }}>
-                            <span style={{ fontSize: '1.5rem' }}>🎉</span>
-                            <div style={{ textAlign: 'left' }}>
-                                <div style={{ fontSize: '1rem', fontWeight: 700 }}>Plan Your Event</div>
-                            </div>
+                        <label className={styles.fieldGroup}>
+                            <span>Password</span>
+                            <span className={styles.inputWrap}>
+                                <KeyRound size={18} />
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    required
+                                    autoComplete="current-password"
+                                    value={password}
+                                    onChange={(event) => setPassword(event.target.value)}
+                                    placeholder="Enter your password"
+                                />
+                                <button
+                                    type="button"
+                                    className={styles.passwordToggle}
+                                    onClick={() => setShowPassword((value) => !value)}
+                                    aria-label={showPassword ? "Hide password" : "Show password"}
+                                >
+                                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                                </button>
+                            </span>
+                        </label>
+
+                        <button type="submit" disabled={loading} className={styles.submit}>
+                            <span>{loading ? "Signing you in..." : "Sign in"}</span>
+                            {!loading && <ArrowRight size={18} />}
                         </button>
-                    </div>
-                </form>
+                    </form>
 
-            </div>
-        </div>
+                    {showDemoAccounts && (
+                        <div className={styles.demoBlock}>
+                            <div className={styles.demoTitle}>Demo workspaces</div>
+                            <div className={styles.demoGrid}>
+                                {demoAccounts.map(({ label, email: accountEmail, icon: Icon }) => (
+                                    <button key={accountEmail} onClick={() => fillDemoAccount(accountEmail)} type="button">
+                                        <Icon size={16} />
+                                        <span>{label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            <p>Password is prefilled for local demo accounts.</p>
+                        </div>
+                    )}
+                </div>
+            </section>
+        </main>
     );
 }

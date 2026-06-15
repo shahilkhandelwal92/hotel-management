@@ -1,222 +1,529 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import {
+    ArrowRight,
+    BedDouble,
+    BellRing,
+    CalendarCheck2,
+    Check,
+    ChevronRight,
+    ConciergeBell,
+    CreditCard,
+    Hotel,
+    KeyRound,
+    LoaderCircle,
+    LogOut,
+    MapPin,
+    ReceiptText,
+    Sparkles,
+    UtensilsCrossed,
+    WalletCards,
+    Wrench,
+} from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import Modal from "@/components/ui/Modal";
+import styles from "./guest.module.css";
 
-function GuestPassContent() {
+type Stay = {
+    id: string;
+    guestName: string;
+    bookingRef: string;
+    status: string;
+    checkIn: string;
+    checkOut: string;
+    room?: { number: string; type: string; floor: number } | null;
+    hotel: { name: string; location: string; phone?: string | null; email?: string | null };
+    totalBalance: number;
+    canSelfCheckIn: boolean;
+    canSelfCheckOut: boolean;
+    onlinePaymentsEnabled: boolean;
+    requests: { id: string; requestType: string; status: string; amount: number; createdAt: string }[];
+    orders: {
+        id: string;
+        status: string;
+        grandTotal: number;
+        createdAt: string;
+        items: { id: string; quantity: number; menuItem: { name: string } }[];
+    }[];
+    amenities: {
+        id: string;
+        name: string;
+        price: number;
+        pricingType: string;
+        customSlots?: unknown;
+    }[];
+    amenityBookings: {
+        id: string;
+        startTime: string;
+        status: string;
+        totalAmount: number;
+        amenity: { name: string };
+    }[];
+    folios: {
+        id: string;
+        transactions: {
+            id: string;
+            type: string;
+            description: string;
+            amount: number;
+            postedAt: string;
+        }[];
+    }[];
+};
+
+type EventGuest = {
+    id: string;
+    name: string;
+    status: string;
+    event?: { hotel?: { name: string; location: string } };
+};
+
+const serviceActions = [
+    { type: "Extra Bed", label: "Extra bed", icon: BedDouble, color: "violet" },
+    { type: "Housekeeping", label: "Room cleaning", icon: Sparkles, color: "mint" },
+    { type: "Laundry", label: "Laundry", icon: ConciergeBell, color: "coral" },
+    { type: "Maintenance", label: "Maintenance", icon: Wrench, color: "yellow" },
+];
+
+function formatMoney(value: number) {
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
+}
+
+function nextDayInputValue() {
+    const date = new Date();
+    date.setDate(date.getDate() + 1);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function GuestPortalContent() {
     const searchParams = useSearchParams();
     const token = searchParams.get("token") || "";
-    const [guest, setGuest] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-    const [requestStatus, setRequestStatus] = useState<"None" | "Pending" | "Approved" | "Paid">("None");
     const router = useRouter();
+    const [stay, setStay] = useState<Stay | null>(null);
+    const [eventGuest, setEventGuest] = useState<EventGuest | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [busyAction, setBusyAction] = useState("");
+    const [error, setError] = useState("");
+    const [notice, setNotice] = useState("");
+    const [bookingAmenity, setBookingAmenity] = useState<Stay["amenities"][number] | null>(null);
+    const [amenityDate, setAmenityDate] = useState("");
+    const [amenityTime, setAmenityTime] = useState("");
+    const [showPayment, setShowPayment] = useState(false);
 
-    const handleLogout = async () => {
-        await fetch("/api/auth/logout", { method: "POST" });
-        router.push("/login");
-    };
+    const loadStay = useCallback(async () => {
+        const response = await fetch("/api/guest/stay");
+        if (!response.ok) return false;
+        const data = await response.json();
+        setStay(data.stay);
+        return true;
+    }, []);
 
     useEffect(() => {
-        if (!token) {
-            setError("Invalid Access Link");
-            setLoading(false);
-            return;
-        }
-
-        fetch(`/api/guests/verify/${token}`)
-            .then(r => r.json())
-            .then(d => {
-                if (d.guest) {
-                    setGuest(d.guest);
-                    const latestReq = d.guest.requests?.[0];
-                    if (latestReq) setRequestStatus(latestReq.status);
-                } else {
-                    setError("Guest not found. Please contact the front desk.");
+        const initialize = async () => {
+            setLoading(true);
+            setError("");
+            try {
+                if (token) {
+                    const verifyResponse = await fetch(`/api/guests/verify/${encodeURIComponent(token)}`);
+                    const verifyData = await verifyResponse.json();
+                    if (!verifyResponse.ok) throw new Error(verifyData.error || "This stay link is invalid.");
+                    if (verifyData.mode === "event") {
+                        setEventGuest(verifyData.guest);
+                        return;
+                    }
                 }
+                const loaded = await loadStay();
+                if (!loaded) throw new Error("Open the secure stay link shared by the hotel.");
+            } catch (caught) {
+                setError(caught instanceof Error ? caught.message : "Unable to load your stay.");
+            } finally {
                 setLoading(false);
-            })
-            .catch(() => {
-                setError("Connection failed. Please refresh.");
-                setLoading(false);
-            });
-    }, [token]);
+            }
+        };
+        initialize();
+    }, [loadStay, token]);
 
-    const handleServiceRequest = async (type: string) => {
-        if (!guest) return;
-        setRequestStatus("Pending");
-        try {
-            const res = await fetch("/api/requests", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ guestId: guest.id, requestType: type })
-            });
-            if (!res.ok) setRequestStatus("None");
-        } catch (err) {
-            setRequestStatus("None");
+    const stayNights = useMemo(() => {
+        if (!stay) return 0;
+        return Math.max(1, Math.ceil((new Date(stay.checkOut).getTime() - new Date(stay.checkIn).getTime()) / 86_400_000));
+    }, [stay]);
+
+    const runStayAction = async (action: "check_in" | "checkout") => {
+        setBusyAction(action);
+        setError("");
+        const response = await fetch("/api/guest/stay", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            setError(data.error || "The action could not be completed.");
+        } else {
+            setNotice(action === "check_in" ? "You are checked in. Welcome to your stay." : "Checkout complete. Have a safe journey.");
+            await loadStay();
         }
+        setBusyAction("");
     };
 
-    if (loading) return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#000' }}>
-            <div className="animate-pulse" style={{ color: 'var(--accent-gold)', fontWeight: 600 }}>SYNCING GUEST CREDENTIALS...</div>
-        </div>
-    );
+    const requestService = async (requestType: string) => {
+        setBusyAction(requestType);
+        setError("");
+        const response = await fetch("/api/guest/requests", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ requestType }),
+        });
+        const data = await response.json();
+        if (!response.ok) setError(data.error || "Could not send your request.");
+        else {
+            setNotice(`${requestType} request sent to the hotel team.`);
+            await loadStay();
+        }
+        setBusyAction("");
+    };
 
-    if (error) return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', padding: '2rem', textAlign: 'center' }}>
-            <div>
-                <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>⚠️</div>
-                <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>{error}</h2>
-                <p style={{ color: 'var(--text-secondary)' }}>Authentication failed for this guest pass.</p>
+    const bookAmenity = async () => {
+        if (!bookingAmenity || !amenityDate || !amenityTime) return;
+        setBusyAction("amenity");
+        const start = new Date(`${amenityDate}T${amenityTime}`);
+        const end = new Date(start.getTime() + 60 * 60 * 1000);
+        const response = await fetch("/api/guest/amenities", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                amenityId: bookingAmenity.id,
+                startTime: start.toISOString(),
+                endTime: end.toISOString(),
+            }),
+        });
+        const data = await response.json();
+        if (!response.ok) setError(data.error || "Could not book this amenity.");
+        else {
+            setNotice(`${bookingAmenity.name} booked successfully.`);
+            setBookingAmenity(null);
+            setAmenityDate("");
+            setAmenityTime("");
+            await loadStay();
+        }
+        setBusyAction("");
+    };
+
+    const openAmenityBooking = (amenity: Stay["amenities"][number]) => {
+        setBookingAmenity(amenity);
+        setAmenityDate(nextDayInputValue());
+        setAmenityTime("10:00");
+        setError("");
+    };
+
+    const pay = async (paymentMode: "UPI" | "Card" | "PayAtDesk") => {
+        setBusyAction(paymentMode);
+        const response = await fetch("/api/guest/payment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paymentMode }),
+        });
+        const data = await response.json();
+        if (!response.ok) setError(data.error || "Payment could not be completed.");
+        else {
+            setNotice(data.message || `${formatMoney(data.amount)} paid successfully. Ref: ${data.reference}`);
+            setShowPayment(false);
+            await loadStay();
+        }
+        setBusyAction("");
+    };
+
+    const logout = async () => {
+        await fetch("/api/auth/logout", { method: "POST" });
+        router.replace("/login");
+    };
+
+    if (loading) {
+        return (
+            <div className={styles.centerState}>
+                <span className={styles.loadingMark}><LoaderCircle className="animate-spin" size={24} /></span>
+                <h2>Preparing your stay</h2>
+                <p>Connecting your room, requests, dining, and bill.</p>
             </div>
-        </div>
-    );
+        );
+    }
 
-    const hotel = guest.event?.hotel;
+    if (error && !stay && !eventGuest) {
+        return (
+            <div className={styles.centerState}>
+                <span className={styles.errorMark}><KeyRound size={24} /></span>
+                <h2>Stay link unavailable</h2>
+                <p>{error}</p>
+                <Button variant="outline" onClick={() => router.push("/login")}>Return to sign in</Button>
+            </div>
+        );
+    }
+
+    if (eventGuest) {
+        return (
+            <main className={styles.eventPage}>
+                <div className={styles.eventPass}>
+                    <div className={styles.eventBrand}><Hotel size={20} /> {eventGuest.event?.hotel?.name || "Hotel event"}</div>
+                    <Badge variant={eventGuest.status === "Attended" ? "success" : "warning"}>{eventGuest.status}</Badge>
+                    <h1>{eventGuest.name}</h1>
+                    <p>{eventGuest.event?.hotel?.location}</p>
+                    <div className={styles.qrPlaceholder}>{eventGuest.id.slice(0, 8).toUpperCase()}</div>
+                    <p>Present this secure pass at the event desk.</p>
+                </div>
+            </main>
+        );
+    }
+
+    if (!stay) return null;
+    const latestOrder = stay.orders[0];
 
     return (
-        <div style={{ minHeight: '100vh', padding: '2rem 1rem', background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 100, display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                <button
-                    onClick={handleLogout}
-                    style={{
-                        background: "rgba(255, 255, 255, 0.05)",
-                        border: "1px solid var(--border-color)",
-                        color: "var(--text-secondary)",
-                        padding: "0.4rem 0.8rem",
-                        borderRadius: "10px",
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                        backdropFilter: "blur(10px)"
-                    }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#ef4444"; (e.currentTarget as HTMLElement).style.color = "#ef4444"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border-color)"; (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)"; }}
-                >
-                    Logout
-                </button>
-                <ThemeToggle />
-            </div>
-
-            <div className="animate-fade-in" style={{ width: '100%', maxWidth: '400px' }}>
-                {/* Visual Ticket Design */}
-                <div style={{
-                    background: 'var(--bg-secondary)',
-                    borderRadius: '24px',
-                    overflow: 'hidden',
-                    boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
-                    border: '1px solid var(--border-color)',
-                    position: 'relative'
-                }}>
-                    <div style={{ padding: '2rem', textAlign: 'center', borderBottom: '2px dashed var(--border-color)' }}>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--accent-gold)', letterSpacing: '2px', fontWeight: 700, marginBottom: '0.5rem' }}>OFFICIAL PASS</div>
-                        <h1 style={{ fontSize: '1.5rem', margin: 0 }}>{hotel?.name || "The Imperial"}</h1>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: '0.4rem 0 0' }}>{hotel?.location || "Delhi NCR"}</p>
+        <main className={styles.page}>
+            <header className={styles.topbar}>
+                <div className={styles.hotelBrand}>
+                    <span><Hotel size={20} /></span>
+                    <div>
+                        <strong>{stay.hotel.name}</strong>
+                        <small><MapPin size={12} /> {stay.hotel.location}</small>
                     </div>
-
-                    <div style={{ padding: '2.5rem 2rem', textAlign: 'center' }}>
-                        <div style={{ marginBottom: '2rem' }}>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>Allocated Room</div>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>{guest.roomNumber || "402"}</div>
-                            <div style={{ fontSize: '1.1rem', color: 'var(--text-primary)', marginTop: '0.4rem' }}>{guest.name}</div>
-                        </div>
-
-                        <div style={{
-                            background: '#fff',
-                            padding: '1rem',
-                            borderRadius: '16px',
-                            display: 'inline-block',
-                            marginBottom: '1.5rem',
-                            boxShadow: '0 0 20px rgba(255,255,255,0.1)'
-                        }}>
-                            <div style={{
-                                width: '180px', height: '180px', background: '#000',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
-                                border: '1px solid #eee', fontWeight: 800, fontSize: '0.9rem'
-                            }}>
-                                QR CODE<br />{guest.id.substring(0, 8).toUpperCase()}
-                            </div>
-                        </div>
-
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                            Present this code at the reception, elevator,<br />or amenities for instant verification.
-                        </p>
-                    </div>
-
-                    {/* Half Circles for Ticket Effect */}
-                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--bg-primary)', position: 'absolute', top: '23%', left: -15, border: '1px solid var(--border-color)' }} />
-                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--bg-primary)', position: 'absolute', top: '23%', right: -15, border: '1px solid var(--border-color)' }} />
                 </div>
+                <div className={styles.topActions}>
+                    <ThemeToggle />
+                    <button onClick={logout} aria-label="Close stay session"><LogOut size={18} /></button>
+                </div>
+            </header>
 
-                {/* Service Quick Actions */}
-                <div style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <Card title="Guest Services" subtitle="Instant room requests">
-                        {requestStatus === "None" ? (
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
-                                <Button variant="outline" size="sm" onClick={() => handleServiceRequest("Extra Bed")}>🛏️ Extra Bed</Button>
-                                <Button variant="outline" size="sm" onClick={() => handleServiceRequest("Housekeeping")}>🧹 Cleaning</Button>
-                                <Button variant="outline" size="sm" onClick={() => handleServiceRequest("Laundry")}>🧺 Laundry</Button>
-                                <Button variant="outline" size="sm" onClick={() => handleServiceRequest("Maintenance")}>🔧 Maintenance</Button>
-                            </div>
-                        ) : (
-                            <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                    <span style={{ fontWeight: 600 }}>Active Request</span>
-                                    <Badge variant={requestStatus === "Approved" ? "success" : "warning"}>{requestStatus}</Badge>
-                                </div>
-                                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
-                                    {requestStatus === "Pending" ? "Staff is reviewing your request. Please wait." : "Request approved. Housekeeping is on the way."}
-                                </p>
-                                {requestStatus === "Approved" && (
-                                    <Button variant="primary" style={{ width: '100%', marginTop: '1rem' }}>💳 Settle Payment</Button>
-                                )}
-                            </div>
-                        )}
-                    </Card>
+            <div className={styles.content}>
+                {(error || notice) && (
+                    <div className={error ? styles.alertError : styles.alertSuccess}>
+                        {error || notice}
+                        <button onClick={() => { setError(""); setNotice(""); }}>×</button>
+                    </div>
+                )}
 
-                    <Card title="Explore & Dining" subtitle="Make the most of your stay">
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                            {hotel?.hasInHouseRestaurant ? (
-                                <Link href="/guest/dining" style={{ textDecoration: 'none' }}>
-                                    <Button variant="primary" style={{ width: '100%', padding: '1rem' }}>🍴 View In-House Menu</Button>
-                                </Link>
-                            ) : (
-                                <>
-                                    <a href="https://www.zomato.com" target="_blank" style={{ textDecoration: 'none' }}>
-                                        <div style={{ padding: '1rem', background: '#E23744', color: '#fff', borderRadius: '12px', textAlign: 'center', fontWeight: 700 }}>Order on Zomato</div>
-                                    </a>
-                                    <a href="https://www.swiggy.com" target="_blank" style={{ textDecoration: 'none' }}>
-                                        <div style={{ padding: '1rem', background: '#FC8019', color: '#fff', borderRadius: '12px', textAlign: 'center', fontWeight: 700 }}>Order on Swiggy</div>
-                                    </a>
-                                </>
+                <section className={styles.hero}>
+                    <div className={styles.heroCopy}>
+                        <div className={styles.eyebrow}>Your stay companion</div>
+                        <h1>Hi {stay.guestName.split(" ")[0]}, everything is ready.</h1>
+                        <p>
+                            {stay.status === "Confirmed"
+                                ? "Complete check-in, then order food, book amenities, and request services from here."
+                                : stay.status === "CheckedOut"
+                                    ? "Thank you for staying with us. Your checkout is complete."
+                                    : "Order, request, book, pay, and check out without waiting at reception."}
+                        </p>
+                        <div className={styles.heroActions}>
+                            {stay.canSelfCheckIn && (
+                                <Button size="lg" onClick={() => runStayAction("check_in")} loading={busyAction === "check_in"}>
+                                    Check in now <ArrowRight size={17} />
+                                </Button>
+                            )}
+                            {stay.status === "CheckedIn" && (
+                                <Button
+                                    size="lg"
+                                    variant={stay.canSelfCheckOut ? "primary" : "outline"}
+                                    onClick={() => stay.canSelfCheckOut ? runStayAction("checkout") : setShowPayment(true)}
+                                    loading={busyAction === "checkout"}
+                                >
+                                    {stay.canSelfCheckOut ? "Complete checkout" : "Settle bill to checkout"}
+                                </Button>
                             )}
                         </div>
-                    </Card>
-                </div>
+                    </div>
+
+                    <div className={styles.roomCard}>
+                        <div className={styles.roomTop}>
+                            <span>Room</span>
+                            <Badge variant={stay.status === "CheckedIn" ? "success" : stay.status === "CheckedOut" ? "neutral" : "warning"}>
+                                {stay.status}
+                            </Badge>
+                        </div>
+                        <strong>{stay.room?.number || "TBA"}</strong>
+                        <p>{stay.room?.type || "Room assignment pending"}{stay.room ? ` · Floor ${stay.room.floor}` : ""}</p>
+                        <div className={styles.stayMeta}>
+                            <div><small>Check-in</small><span>{new Date(stay.checkIn).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span></div>
+                            <div><small>Check-out</small><span>{new Date(stay.checkOut).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span></div>
+                            <div><small>Nights</small><span>{stayNights}</span></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section className={styles.quickGrid}>
+                    <Link href="/guest/dining" className={`${styles.quickCard} ${styles.quickViolet}`}>
+                        <span><UtensilsCrossed size={21} /></span>
+                        <div><strong>Order food</strong><small>Live menu and tracking</small></div>
+                        <ChevronRight size={18} />
+                    </Link>
+                    <button className={`${styles.quickCard} ${styles.quickMint}`} onClick={() => document.getElementById("amenities")?.scrollIntoView()}>
+                        <span><CalendarCheck2 size={21} /></span>
+                        <div><strong>Book amenities</strong><small>Spa, gym, and more</small></div>
+                        <ChevronRight size={18} />
+                    </button>
+                    <button className={`${styles.quickCard} ${styles.quickCoral}`} onClick={() => setShowPayment(true)}>
+                        <span><WalletCards size={21} /></span>
+                        <div><strong>My bill</strong><small>{formatMoney(stay.totalBalance)} outstanding</small></div>
+                        <ChevronRight size={18} />
+                    </button>
+                </section>
+
+                {latestOrder && (
+                    <section className={styles.orderTracker}>
+                        <div className={styles.orderIcon}><BellRing size={20} /></div>
+                        <div>
+                            <small>Latest room-service order</small>
+                            <strong>{latestOrder.status}</strong>
+                            <p>{latestOrder.items.map((item) => `${item.quantity}× ${item.menuItem.name}`).join(", ")}</p>
+                        </div>
+                        <Badge variant={["Delivered", "Completed"].includes(latestOrder.status) ? "success" : "primary"}>
+                            {formatMoney(latestOrder.grandTotal)}
+                        </Badge>
+                    </section>
+                )}
+
+                <section className={styles.section}>
+                    <div className={styles.sectionHeading}>
+                        <div><span>Need something?</span><h2>Room services</h2></div>
+                        <p>Your request goes directly to the hotel team.</p>
+                    </div>
+                    <div className={styles.serviceGrid}>
+                        {serviceActions.map(({ type, label, icon: Icon, color }) => (
+                            <button key={type} className={styles.serviceCard} data-color={color} onClick={() => requestService(type)} disabled={busyAction === type || stay.status !== "CheckedIn"}>
+                                <span><Icon size={21} /></span>
+                                <strong>{label}</strong>
+                                <small>{busyAction === type ? "Sending..." : "Request now"}</small>
+                            </button>
+                        ))}
+                    </div>
+                    {stay.requests.length > 0 && (
+                        <div className={styles.requestList}>
+                            {stay.requests.slice(0, 4).map((request) => (
+                                <div key={request.id}>
+                                    <span className={styles.requestCheck}><Check size={14} /></span>
+                                    <div><strong>{request.requestType}</strong><small>{new Date(request.createdAt).toLocaleString("en-IN")}</small></div>
+                                    <Badge variant={request.status === "Approved" ? "success" : request.status === "Rejected" ? "danger" : "warning"}>{request.status}</Badge>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
+
+                <section className={styles.section} id="amenities">
+                    <div className={styles.sectionHeading}>
+                        <div><span>Make time for you</span><h2>Hotel amenities</h2></div>
+                        <p>Book a one-hour slot and charge it to your room.</p>
+                    </div>
+                    <div className={styles.amenityGrid}>
+                        {stay.amenities.map((amenity) => (
+                            <article key={amenity.id} className={styles.amenityCard}>
+                                <span className={styles.amenityIcon}><Sparkles size={21} /></span>
+                                <div>
+                                    <strong>{amenity.name}</strong>
+                                    <small>{amenity.pricingType === "FREE" ? "Included with your stay" : formatMoney(amenity.price)}</small>
+                                </div>
+                                <Button size="sm" variant="outline" onClick={() => openAmenityBooking(amenity)} disabled={stay.status !== "CheckedIn"}>Book</Button>
+                            </article>
+                        ))}
+                        {stay.amenities.length === 0 && <div className={styles.empty}>No bookable amenities are configured yet.</div>}
+                    </div>
+                    {stay.amenityBookings.length > 0 && (
+                        <div className={styles.bookings}>
+                            {stay.amenityBookings.map((booking) => (
+                                <div key={booking.id}>
+                                    <CalendarCheck2 size={18} />
+                                    <span><strong>{booking.amenity.name}</strong><small>{new Date(booking.startTime).toLocaleString("en-IN")}</small></span>
+                                    <Badge variant="success">{booking.status}</Badge>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
+
+                <section className={styles.billBanner}>
+                    <span className={styles.billIcon}><ReceiptText size={24} /></span>
+                    <div>
+                        <small>Current folio balance</small>
+                        <strong>{formatMoney(stay.totalBalance)}</strong>
+                        <p>Includes room, dining, amenities, and approved service charges.</p>
+                    </div>
+                    <Button variant={stay.totalBalance > 0 ? "primary" : "outline"} onClick={() => setShowPayment(true)}>
+                        {stay.totalBalance > 0 ? "View and pay" : "View folio"}
+                    </Button>
+                </section>
             </div>
 
-            <p style={{ marginTop: '3rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                &copy; 2026 {hotel?.name} · Powered by Antigravity OS
-            </p>
-        </div>
+            <Modal
+                isOpen={Boolean(bookingAmenity)}
+                onClose={() => setBookingAmenity(null)}
+                title={`Book ${bookingAmenity?.name || "amenity"}`}
+                footer={
+                    <>
+                        <Button variant="outline" onClick={() => setBookingAmenity(null)}>Cancel</Button>
+                        <Button
+                            onClick={bookAmenity}
+                            loading={busyAction === "amenity"}
+                            disabled={!amenityDate || !amenityTime}
+                        >
+                            Confirm booking
+                        </Button>
+                    </>
+                }
+            >
+                <div className={styles.modalForm}>
+                    <div className={styles.priceNote}>
+                        <Sparkles size={18} />
+                        <span>{bookingAmenity?.pricingType === "FREE" ? "Included with your stay" : `${formatMoney(bookingAmenity?.price || 0)} will be added to your room folio.`}</span>
+                    </div>
+                    <label><span>Date</span><input className="field" type="date" value={amenityDate} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setAmenityDate(event.target.value)} /></label>
+                    <label><span>Start time</span><input className="field" type="time" value={amenityTime} onChange={(event) => setAmenityTime(event.target.value)} /></label>
+                    <p>Bookings are one hour. The hotel team will confirm any special instructions.</p>
+                </div>
+            </Modal>
+
+            <Modal
+                isOpen={showPayment}
+                onClose={() => setShowPayment(false)}
+                title="Settle your stay"
+            >
+                <div className={styles.paymentModal}>
+                    <div className={styles.balanceBlock}>
+                        <small>Amount due</small>
+                        <strong>{formatMoney(stay.totalBalance)}</strong>
+                    </div>
+                    {stay.folios.flatMap((folio) => folio.transactions).slice(0, 8).map((transaction) => (
+                        <div className={styles.transaction} key={transaction.id}>
+                            <div><strong>{transaction.description}</strong><small>{new Date(transaction.postedAt).toLocaleDateString("en-IN")}</small></div>
+                            <span className={transaction.amount < 0 ? styles.credit : ""}>{transaction.amount < 0 ? "−" : ""}{formatMoney(Math.abs(transaction.amount))}</span>
+                        </div>
+                    ))}
+                    {stay.totalBalance > 0 && (
+                        <div className={styles.paymentChoices}>
+                            {stay.onlinePaymentsEnabled && (
+                                <>
+                                    <button onClick={() => pay("UPI")} disabled={Boolean(busyAction)}><span><CreditCard size={19} /></span><div><strong>Pay by UPI</strong><small>Instant secure payment</small></div><ChevronRight size={17} /></button>
+                                    <button onClick={() => pay("Card")} disabled={Boolean(busyAction)}><span><WalletCards size={19} /></span><div><strong>Pay by card</strong><small>Credit or debit card</small></div><ChevronRight size={17} /></button>
+                                </>
+                            )}
+                            <button onClick={() => pay("PayAtDesk")} disabled={Boolean(busyAction)}><span><ConciergeBell size={19} /></span><div><strong>Pay at front desk</strong><small>Cash, card, or UPI at reception</small></div><ChevronRight size={17} /></button>
+                        </div>
+                    )}
+                </div>
+            </Modal>
+        </main>
     );
 }
 
-export default function GuestPass() {
+export default function GuestPage() {
     return (
-        <Suspense fallback={
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#000' }}>
-                <div style={{ color: 'var(--accent-gold)' }}>INITIALIZING...</div>
-            </div>
-        }>
-            <GuestPassContent />
+        <Suspense fallback={<div className={styles.centerState}><LoaderCircle className="animate-spin" size={28} /></div>}>
+            <GuestPortalContent />
         </Suspense>
     );
 }

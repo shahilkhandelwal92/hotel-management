@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getReportAccess } from '@/lib/reportAccess';
 
 // Indian GST Slabs for Hotel Rooms (as per GST Council)
 // 0% for tariff < ₹1,000/night
@@ -145,9 +146,11 @@ function generateGSTData(hotelId?: string) {
     };
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
     const url = new URL(request.url);
-    const hotelId = url.searchParams.get('hotelId') || undefined;
+    const reportAccess = await getReportAccess(request, url.searchParams.get('hotelId'));
+    if (!reportAccess) return NextResponse.json({ error: 'Accounting access required' }, { status: 403 });
+    const hotelId = reportAccess.hotelId || undefined;
     const data = generateGSTData(hotelId);
     return NextResponse.json(data);
 }

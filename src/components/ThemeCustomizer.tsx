@@ -36,6 +36,12 @@ function applyTheme(s: ThemeSettings) {
     document.body.style.backgroundImage = bg ? `url('${bg}')` : "";
     document.body.style.backgroundSize = bg ? "cover" : "";
     document.body.style.backgroundAttachment = bg ? "fixed" : "";
+
+    if (bg) {
+        document.body.classList.add("has-bg-img");
+    } else {
+        document.body.classList.remove("has-bg-img");
+    }
 }
 
 // Called globally (without login) to apply server theme

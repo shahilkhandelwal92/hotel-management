@@ -1,6 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getReportAccess } from '@/lib/reportAccess';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+    const reportAccess = await getReportAccess(request, new URL(request.url).searchParams.get('hotelId'));
+    if (!reportAccess) return NextResponse.json({ error: 'Accounting access required' }, { status: 403 });
     const compliance = [
         {
             hotelName: 'The Grand Imperial',

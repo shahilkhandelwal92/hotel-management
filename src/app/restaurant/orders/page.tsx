@@ -1,73 +1,142 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BellRing, Check, ChefHat, Clock3, DoorOpen, RefreshCw, UtensilsCrossed } from "lucide-react";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
 import styles from "../restaurant.module.css";
 
-// Mocks representing pending FoodOrders from the database
-const INITIAL_ORDERS = [
-    { id: "ord_1", room: "402", guest: "Arjun Sharma", time: "10 mins ago", status: "Pending", items: ["2x Butter Chicken", "4x Garlic Naan"] },
-    { id: "ord_2", room: "105", guest: "Priya Patel", time: "25 mins ago", status: "Preparing", items: ["1x Veg Biryani", "1x Raita", "2x Coke"] },
-    { id: "ord_3", room: "310", guest: "Rohan Singh", time: "45 mins ago", status: "Ready", items: ["1x Paneer Tikka"] },
+type Order = {
+    id: string;
+    tableNumber?: string | null;
+    guestName?: string | null;
+    orderSource: string;
+    status: string;
+    paymentStatus: string;
+    grandTotal: number;
+    createdAt: string;
+    items: { id: string; quantity: number; notes?: string | null; menuItem: { name: string } }[];
+};
+
+const columns = [
+    { status: "Pending", title: "New orders", icon: BellRing, next: "Preparing" },
+    { status: "Preparing", title: "In the kitchen", icon: ChefHat, next: "Ready" },
+    { status: "Ready", title: "Ready to serve", icon: UtensilsCrossed, next: "Delivered" },
 ];
 
-export default function LiveOrdersPage() {
-    const [orders, setOrders] = useState(INITIAL_ORDERS);
+const statusVariant: Record<string, "warning" | "primary" | "success" | "neutral"> = {
+    Pending: "warning",
+    Preparing: "primary",
+    Ready: "success",
+    Delivered: "neutral",
+};
 
-    const moveOrder = (id: string, newStatus: string) => {
-        setOrders(orders.map(o => o.id === id ? { ...o, status: newStatus } : o));
+export default function LiveOrdersPage() {
+    const [orders, setOrders] = useState<Order[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [updating, setUpdating] = useState("");
+    const [error, setError] = useState("");
+
+    const load = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
+        const response = await fetch("/api/pos/orders");
+        const data = await response.json();
+        if (!response.ok) setError(data.error || "Orders could not be loaded.");
+        else setOrders(data.orders || []);
+        if (!silent) setLoading(false);
+    }, []);
+
+    useEffect(() => {
+        const initial = window.setTimeout(() => { void load(); }, 0);
+        const refresh = window.setInterval(() => load(true), 12_000);
+        return () => {
+            window.clearTimeout(initial);
+            window.clearInterval(refresh);
+        };
+    }, [load]);
+
+    const updateStatus = async (id: string, status: string) => {
+        setUpdating(id);
+        const response = await fetch("/api/pos/orders", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, status }),
+        });
+        const data = await response.json();
+        if (!response.ok) setError(data.error || "Order status could not be updated.");
+        else setOrders((current) => current.map((order) => order.id === id ? data.order : order));
+        setUpdating("");
     };
 
-    const getOrdersByStatus = (status: string) => orders.filter(o => o.status === status);
-
-    const renderColumn = (title: string, status: string, nextStatus: string | null) => (
-        <div className={styles.kanbanColumn}>
-            <div className={styles.columnTitle}>
-                {title}
-                <span style={{ background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.8rem' }}>
-                    {getOrdersByStatus(status).length}
-                </span>
-            </div>
-
-            {getOrdersByStatus(status).map(order => (
-                <div key={order.id} className={styles.orderCard} onClick={() => nextStatus && moveOrder(order.id, nextStatus)}>
-                    <div className={styles.orderHeader}>
-                        <span>#{order.id.split('_')[1]}</span>
-                        <span style={{ color: status === 'Pending' ? '#ef4444' : 'var(--text-secondary)' }}>{order.time}</span>
-                    </div>
-                    <div className={styles.roomNo}>Room {order.room}</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{order.guest}</div>
-
-                    <ul className={styles.orderItems}>
-                        {order.items.map((item, idx) => <li key={idx}>{item}</li>)}
-                    </ul>
-
-                    {nextStatus && (
-                        <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.8rem', color: 'var(--accent-gold)' }}>
-                            Click to move to {nextStatus} ➔
-                        </div>
-                    )}
-                </div>
-            ))}
-        </div>
-    );
+    const counts = useMemo(() => ({
+        active: orders.filter((order) => ["Pending", "Preparing", "Ready"].includes(order.status)).length,
+        roomService: orders.filter((order) => order.orderSource === "RoomService").length,
+        completed: orders.filter((order) => ["Delivered", "Completed"].includes(order.status)).length,
+    }), [orders]);
 
     return (
         <div className="animate-fade-in">
-            <div className={styles.header}>
+            <div className={styles.pageHeader}>
                 <div>
-                    <h1>Live Kitchen Orders</h1>
-                    <p>Tap a ticket to advance its preparation state. Delivered orders are fully completed.</p>
+                    <div className="page-eyebrow">Kitchen display system</div>
+                    <h1>Live orders</h1>
+                    <p>Move each ticket forward as the kitchen prepares and dispatches it.</p>
                 </div>
+                <Button variant="outline" onClick={() => load()} loading={loading}><RefreshCw size={16} /> Refresh</Button>
+            </div>
+
+            {error && <div className={styles.error}>{error}<button onClick={() => setError("")}>×</button></div>}
+
+            <div className={styles.stats}>
+                <div><span className={styles.statViolet}><BellRing size={19} /></span><div><small>Active tickets</small><strong>{counts.active}</strong></div></div>
+                <div><span className={styles.statMint}><DoorOpen size={19} /></span><div><small>Room service</small><strong>{counts.roomService}</strong></div></div>
+                <div><span className={styles.statCoral}><Check size={19} /></span><div><small>Completed today</small><strong>{counts.completed}</strong></div></div>
             </div>
 
             <div className={styles.kanbanBoard}>
-                {renderColumn("New Tickets (Pending)", "Pending", "Preparing")}
-                {renderColumn("Cooking (Preparing)", "Preparing", "Ready")}
-                {renderColumn("Out for Delivery (Ready)", "Ready", "Delivered")}
-            </div>
-
-            <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderRadius: '8px', textAlign: 'center', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                {getOrdersByStatus("Delivered").length} orders successfully delivered today!
+                {columns.map(({ status, title, icon: Icon, next }) => {
+                    const columnOrders = orders.filter((order) => order.status === status);
+                    return (
+                        <section key={status} className={styles.kanbanColumn}>
+                            <div className={styles.columnTitle}>
+                                <span><Icon size={18} /> {title}</span>
+                                <Badge variant={statusVariant[status]}>{columnOrders.length}</Badge>
+                            </div>
+                            <div className={styles.ticketList}>
+                                {columnOrders.map((order) => (
+                                    <article key={order.id} className={styles.orderCard}>
+                                        <div className={styles.orderHeader}>
+                                            <span>#{order.id.slice(0, 6).toUpperCase()}</span>
+                                            <span><Clock3 size={13} /> {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+                                        </div>
+                                        <div className={styles.orderRoom}>
+                                            <strong>{order.orderSource === "RoomService" ? `Room ${order.tableNumber || "TBA"}` : order.tableNumber ? `Table ${order.tableNumber}` : order.orderSource}</strong>
+                                            <small>{order.guestName || "Walk-in guest"}</small>
+                                        </div>
+                                        <div className={styles.orderItems}>
+                                            {order.items.map((item) => (
+                                                <div key={item.id}>
+                                                    <span>{item.quantity}×</span>
+                                                    <strong>{item.menuItem.name}</strong>
+                                                    {item.notes && <small>{item.notes}</small>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className={styles.ticketFooter}>
+                                            <div><small>Total</small><strong>₹{order.grandTotal.toLocaleString("en-IN")}</strong></div>
+                                            <Button size="sm" onClick={() => updateStatus(order.id, next)} loading={updating === order.id}>
+                                                Move to {next}
+                                            </Button>
+                                        </div>
+                                    </article>
+                                ))}
+                                {!loading && columnOrders.length === 0 && (
+                                    <div className={styles.columnEmpty}><Check size={19} /><span>No {status.toLowerCase()} tickets</span></div>
+                                )}
+                            </div>
+                        </section>
+                    );
+                })}
             </div>
         </div>
     );

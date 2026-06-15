@@ -1,142 +1,239 @@
 "use client";
 
-import { useState } from "react";
-import styles from "./dining.module.css";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import {
+    ArrowLeft,
+    Check,
+    ChefHat,
+    ChevronRight,
+    Minus,
+    Plus,
+    Search,
+    ShoppingBag,
+    Sparkles,
+    UtensilsCrossed,
+} from "lucide-react";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import styles from "./dining.module.css";
 
-// Mock Data
-const MOCK_HOTEL = {
-    zomatoLink: "https://www.zomato.com/ncr/restaurants"
+type MenuItem = {
+    id: string;
+    name: string;
+    category: string;
+    price: number;
+    isVeg: boolean;
+    spiceLevel: string;
 };
 
-const MENU_ITEMS = [
-    { id: "m1", name: "Paneer Butter Masala", category: "Main Course", price: 350, isVeg: true, spice: "Medium" },
-    { id: "m2", name: "Butter Chicken", category: "Main Course", price: 450, isVeg: false, spice: "Medium" },
-    { id: "m3", name: "Garlic Naan", category: "Breads", price: 60, isVeg: true, spice: "Low" },
-    { id: "m4", name: "Chicken Tikka", category: "Starters", price: 320, isVeg: false, spice: "High" },
-    { id: "m5", name: "Vegetable Biryani", category: "Rice", price: 300, isVeg: true, spice: "High" },
-];
+type StayData = {
+    guestName: string;
+    status: string;
+    room?: { number: string } | null;
+    hotel: { name: string; hasInHouseRestaurant?: boolean };
+    menuItems: MenuItem[];
+    orders: {
+        id: string;
+        status: string;
+        grandTotal: number;
+        items: { id: string; quantity: number; menuItem: { name: string } }[];
+    }[];
+};
+
+type CartLine = MenuItem & { quantity: number };
+
+const statusSteps = ["Pending", "Preparing", "Ready", "Delivered"];
+
+function money(value: number) {
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
+}
 
 export default function GuestDiningPage() {
-    const [cart, setCart] = useState<{ id: string, name: string, price: number, qty: number }[]>([]);
-    const [orderStatus, setOrderStatus] = useState<"None" | "Pending" | "Preparing" | "Ready" | "Delivered">("None");
+    const [stay, setStay] = useState<StayData | null>(null);
+    const [cart, setCart] = useState<Record<string, CartLine>>({});
+    const [category, setCategory] = useState("All");
+    const [query, setQuery] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [placing, setPlacing] = useState(false);
+    const [error, setError] = useState("");
 
-    const addToCart = (item: any) => {
-        const existing = cart.find(c => c.id === item.id);
-        if (existing) {
-            setCart(cart.map(c => c.id === item.id ? { ...c, qty: c.qty + 1 } : c));
-        } else {
-            setCart([...cart, { id: item.id, name: item.name, price: item.price, qty: 1 }]);
+    const load = async () => {
+        setLoading(true);
+        const response = await fetch("/api/guest/stay");
+        const data = await response.json();
+        if (!response.ok) setError(data.error || "Your stay session has expired.");
+        else setStay(data.stay);
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        const initial = window.setTimeout(() => { void load(); }, 0);
+        const refresh = window.setInterval(load, 15_000);
+        return () => {
+            window.clearTimeout(initial);
+            window.clearInterval(refresh);
+        };
+    }, []);
+
+    const categories = useMemo(
+        () => ["All", ...Array.from(new Set(stay?.menuItems.map((item) => item.category) || []))],
+        [stay],
+    );
+    const visibleItems = useMemo(() => {
+        const normalized = query.trim().toLowerCase();
+        return (stay?.menuItems || []).filter((item) =>
+            (category === "All" || item.category === category) &&
+            (!normalized || item.name.toLowerCase().includes(normalized)),
+        );
+    }, [category, query, stay]);
+    const cartLines = Object.values(cart);
+    const subtotal = cartLines.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const taxes = Math.round(subtotal * 0.05 * 100) / 100;
+    const total = subtotal + taxes;
+    const latestOrder = stay?.orders[0];
+
+    const changeQuantity = (item: MenuItem, change: number) => {
+        setCart((current) => {
+            const quantity = (current[item.id]?.quantity || 0) + change;
+            if (quantity <= 0) {
+                const next = { ...current };
+                delete next[item.id];
+                return next;
+            }
+            return { ...current, [item.id]: { ...item, quantity } };
+        });
+    };
+
+    const placeOrder = async () => {
+        if (cartLines.length === 0) return;
+        setPlacing(true);
+        setError("");
+        const response = await fetch("/api/guest/orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                items: cartLines.map((item) => ({
+                    menuItemId: item.id,
+                    quantity: item.quantity,
+                })),
+            }),
+        });
+        const data = await response.json();
+        if (!response.ok) setError(data.error || "Your order could not be placed.");
+        else {
+            setCart({});
+            await load();
         }
+        setPlacing(false);
     };
 
-    const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+    if (loading && !stay) {
+        return <div className={styles.center}><ChefHat className="animate-pulse" size={34} /><h2>Opening the kitchen menu</h2></div>;
+    }
 
-    const placeOrder = () => {
-        if (cart.length === 0) return;
-        setOrderStatus("Pending");
-        // Simulate Order Progress internally for demonstration
-        setTimeout(() => setOrderStatus("Preparing"), 4000);
-        setTimeout(() => setOrderStatus("Ready"), 8000);
-        setTimeout(() => setOrderStatus("Delivered"), 12000);
-    };
-
-    const groupedMenu = MENU_ITEMS.reduce((acc, item) => {
-        if (!acc[item.category]) acc[item.category] = [];
-        acc[item.category].push(item);
-        return acc;
-    }, {} as Record<string, typeof MENU_ITEMS>);
+    if (!stay) {
+        return <div className={styles.center}><h2>Dining unavailable</h2><p>{error}</p><Link href="/guest"><Button variant="outline">Back to stay</Button></Link></div>;
+    }
 
     return (
-        <div className={styles.diningContainer}>
-            <div style={{ position: 'fixed', top: '2rem', right: '2rem' }}>
-                <ThemeToggle />
-            </div>
-
-            <div className={styles.header}>
-                <Link href="/guest" style={{ color: 'var(--text-secondary)', textDecoration: 'none', marginBottom: '1rem', display: 'inline-block' }}>
-                    ← Back to Guest Pass
-                </Link>
-                <h1>In-Room Dining</h1>
-                <p>Order fresh, chef-prepared meals directly to Room 402.</p>
-            </div>
-
-            {MOCK_HOTEL.zomatoLink && (
-                <a href={MOCK_HOTEL.zomatoLink} target="_blank" rel="noopener noreferrer" className={styles.zomatoBtn}>
-                    Looking for outside food? Order on Zomato
-                </a>
-            )}
-
-            <div className="animate-fade-in">
-                {Object.keys(groupedMenu).map(category => (
-                    <div key={category} className={styles.menuSection}>
-                        <h2 className={styles.categoryTitle}>{category}</h2>
-                        {groupedMenu[category].map(item => (
-                            <div key={item.id} className={styles.menuItemCard}>
-                                <div className={styles.itemInfo}>
-                                    <div className={styles.itemName}>
-                                        <div className={item.isVeg ? styles.vegBadge : styles.nonVegBadge}></div>
-                                        {item.name}
-                                    </div>
-                                    <div className={styles.itemPrice}>₹{item.price}</div>
-                                    <div className={styles.itemTags}>
-                                        <span className={styles.spicePill}>{item.spice} Spice</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <button className={styles.addBtn} onClick={() => addToCart(item)}>Add</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ))}
-            </div>
-
-            {/* Bottom Floating Bar */}
-            {orderStatus === "None" ? (
-                cart.length > 0 && (
-                    <div className={`animate-fade-in ${styles.bottomBar}`}>
-                        <div>
-                            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                ₹{cartTotal}
-                            </div>
-                            <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                {cart.reduce((a, c) => a + c.qty, 0)} Items
-                            </div>
-                        </div>
-                        <button className={styles.checkoutBtn} onClick={placeOrder}>
-                            Place Order
-                        </button>
-                    </div>
-                )
-            ) : (
-                <div className={`animate-fade-in ${styles.bottomBar}`}>
-                    <div className={styles.trackerStatus}>
-                        {orderStatus === "Pending" && <div className={styles.statusIcon} style={{ background: 'rgba(245,158,11,0.2)', color: '#f59e0b' }}>🕒</div>}
-                        {orderStatus === "Preparing" && <div className={styles.statusIcon} style={{ background: 'rgba(59,130,246,0.2)', color: '#3b82f6' }}>👨‍🍳</div>}
-                        {orderStatus === "Ready" && <div className={styles.statusIcon} style={{ background: 'rgba(16,185,129,0.2)' }}>🛎️</div>}
-                        {orderStatus === "Delivered" && <div className={styles.statusIcon} style={{ background: 'rgba(16,185,129,0.2)' }}>✅</div>}
-
-                        <div>
-                            <div style={{ fontSize: '1.1rem' }}>
-                                {orderStatus === "Pending" && "Order received by kitchen"}
-                                {orderStatus === "Preparing" && "Chef is preparing your meal"}
-                                {orderStatus === "Ready" && "Out for delivery to room 402"}
-                                {orderStatus === "Delivered" && "Enjoy your meal!"}
-                            </div>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 400 }}>
-                                {orderStatus !== "Delivered" ? "Live tracking update" : "Order complete"}
-                            </div>
-                        </div>
-                    </div>
-                    {orderStatus === "Delivered" && (
-                        <button className={styles.checkoutBtn} onClick={() => { setOrderStatus("None"); setCart([]); }}>
-                            New Order
-                        </button>
-                    )}
+        <main className={styles.page}>
+            <header className={styles.header}>
+                <Link href="/guest" className={styles.back}><ArrowLeft size={18} /> Stay</Link>
+                <div className={styles.title}>
+                    <span><UtensilsCrossed size={20} /></span>
+                    <div><strong>{stay.hotel.name}</strong><small>In-room dining · Room {stay.room?.number || "TBA"}</small></div>
                 </div>
+                <Badge variant={stay.status === "CheckedIn" ? "success" : "warning"}>{stay.status}</Badge>
+            </header>
+
+            <div className={styles.content}>
+                <section className={styles.hero}>
+                    <div>
+                        <div className={styles.eyebrow}><Sparkles size={14} /> Made fresh for your stay</div>
+                        <h1>What are you craving, {stay.guestName.split(" ")[0]}?</h1>
+                        <p>Order from the live hotel menu. Your bill is added to the room folio automatically.</p>
+                    </div>
+                    <div className={styles.search}>
+                        <Search size={18} />
+                        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search dishes" />
+                    </div>
+                </section>
+
+                {error && <div className={styles.error}>{error}<button onClick={() => setError("")}>×</button></div>}
+
+                {latestOrder && (
+                    <section className={styles.tracker}>
+                        <div className={styles.trackerHead}>
+                            <div><small>Live order</small><strong>#{latestOrder.id.slice(0, 6).toUpperCase()}</strong></div>
+                            <Badge variant={latestOrder.status === "Delivered" ? "success" : "primary"}>{latestOrder.status}</Badge>
+                        </div>
+                        <div className={styles.steps}>
+                            {statusSteps.map((step, index) => {
+                                const activeIndex = Math.max(0, statusSteps.indexOf(latestOrder.status));
+                                const complete = index <= activeIndex;
+                                return (
+                                    <div key={step} data-complete={complete}>
+                                        <span>{complete ? <Check size={13} /> : index + 1}</span>
+                                        <small>{step}</small>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <p>{latestOrder.items.map((item) => `${item.quantity}× ${item.menuItem.name}`).join(" · ")}</p>
+                    </section>
+                )}
+
+                <nav className={styles.categories} aria-label="Menu categories">
+                    {categories.map((name) => (
+                        <button key={name} data-active={category === name} onClick={() => setCategory(name)}>{name}</button>
+                    ))}
+                </nav>
+
+                <section className={styles.menuGrid}>
+                    {visibleItems.map((item) => {
+                        const quantity = cart[item.id]?.quantity || 0;
+                        return (
+                            <article key={item.id} className={styles.menuCard}>
+                                <div className={styles.foodVisual} data-veg={item.isVeg}>
+                                    <span>{item.isVeg ? "VEG" : "NON-VEG"}</span>
+                                </div>
+                                <div className={styles.menuInfo}>
+                                    <div className={styles.menuMeta}>
+                                        <Badge variant={item.isVeg ? "success" : "danger"}>{item.isVeg ? "Veg" : "Non-veg"}</Badge>
+                                        <small>{item.spiceLevel} spice</small>
+                                    </div>
+                                    <h3>{item.name}</h3>
+                                    <p>{item.category}</p>
+                                    <div className={styles.menuFooter}>
+                                        <strong>{money(item.price)}</strong>
+                                        {quantity === 0 ? (
+                                            <button className={styles.add} onClick={() => changeQuantity(item, 1)}>Add <Plus size={15} /></button>
+                                        ) : (
+                                            <div className={styles.stepper}>
+                                                <button onClick={() => changeQuantity(item, -1)} aria-label={`Remove one ${item.name}`}><Minus size={14} /></button>
+                                                <span>{quantity}</span>
+                                                <button onClick={() => changeQuantity(item, 1)} aria-label={`Add one ${item.name}`}><Plus size={14} /></button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </article>
+                        );
+                    })}
+                    {visibleItems.length === 0 && <div className={styles.empty}>No dishes match this filter.</div>}
+                </section>
+            </div>
+
+            {cartLines.length > 0 && (
+                <aside className={styles.cartBar}>
+                    <div className={styles.cartCount}><ShoppingBag size={19} /><span>{cartLines.reduce((sum, item) => sum + item.quantity, 0)} items</span></div>
+                    <div className={styles.cartPrice}><small>Including 5% tax</small><strong>{money(total)}</strong></div>
+                    <button onClick={placeOrder} disabled={placing}>
+                        {placing ? "Placing order..." : "Place room-service order"} <ChevronRight size={18} />
+                    </button>
+                </aside>
             )}
-        </div>
+        </main>
     );
 }

@@ -1,87 +1,122 @@
 "use client";
 
-import { useState } from "react";
-import styles from "./settings.module.css";
+import { useState, useEffect } from "react";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Card from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
 
 export default function SettingsPage() {
-    const [hasRestaurant, setHasRestaurant] = useState(true);
-    const [zomatoLink, setZomatoLink] = useState("");
-    const [swiggyLink, setSwiggyLink] = useState("");
-    const [isSaving, setIsSaving] = useState(false);
+    const [hotel, setHotel] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+
+    // Form states
+    const [form, setForm] = useState({
+        hasInHouseRestaurant: true,
+        zomatoLink: "",
+        swiggyLink: ""
+    });
+
+    useEffect(() => {
+        const fetchHotel = async () => {
+            try {
+                // Get current user's hotel
+                const res = await fetch("/api/hotels");
+                const data = await res.json();
+                if (data.hotels?.length > 0) {
+                    const h = data.hotels[0]; // Assuming first hotel for admin
+                    setHotel(h);
+                    setForm({
+                        hasInHouseRestaurant: h.hasInHouseRestaurant,
+                        zomatoLink: h.zomatoLink || "",
+                        swiggyLink: h.swiggyLink || ""
+                    });
+                }
+            } catch (err) {
+                console.error("Fetch hotel error:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchHotel();
+    }, []);
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSaving(true);
-        // Simulate an API call delay
-        await new Promise(resolve => setTimeout(resolve, 800));
-        alert("Settings saved successfully!");
-        setIsSaving(false);
+        if (!hotel) return;
+        setSaving(true);
+        try {
+            const res = await fetch(`/api/hotels/${hotel.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(form)
+            });
+            if (res.ok) {
+                alert("Property settings updated successfully!");
+            }
+        } catch (err) {
+            console.error("Save error:", err);
+        } finally {
+            setSaving(false);
+        }
     };
 
+    if (loading) return <div style={{ padding: "4rem", textAlign: "center", color: 'var(--text-secondary)' }}>Loading Configuration...</div>;
+
     return (
-        <div className={styles.settingsContainer}>
-            <div className={styles.header}>
-                <h1>Property Settings</h1>
-                <p>Configure your hotel features and integrations.</p>
+        <div className="animate-fade-in" style={{ padding: '0 1rem', maxWidth: '800px' }}>
+            <div style={{ marginBottom: '2rem' }}>
+                <h1 style={{ fontSize: '2rem', margin: 0 }}>Property Configuration</h1>
+                <p style={{ color: 'var(--text-secondary)', marginTop: '0.4rem' }}>
+                    Manage core hotel features, dining preferences, and digital integrations for {hotel?.name}.
+                </p>
             </div>
 
-            <form onSubmit={handleSave} className="animate-fade-in">
-                <div className={styles.card}>
-                    <h2 className={styles.cardTitle}>
-                        🍽️ Food & Dining Configuration
-                    </h2>
-
-                    <div className={styles.toggleContainer}>
-                        <label className={styles.switch}>
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                <Card title="Dining & Room Service" subtitle="Configure how guests discover and order food">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
                             <input
                                 type="checkbox"
-                                checked={hasRestaurant}
-                                onChange={(e) => setHasRestaurant(e.target.checked)}
+                                id="restaurant-toggle"
+                                checked={form.hasInHouseRestaurant}
+                                onChange={e => setForm({ ...form, hasInHouseRestaurant: e.target.checked })}
+                                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                             />
-                            <span className={styles.slider}></span>
-                        </label>
-                        <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>
-                            We have an In-House Restaurant / Room Service
-                        </span>
-                    </div>
-
-                    {!hasRestaurant && (
-                        <div className="animate-fade-in" style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)' }}>
-                            <p style={{ color: "var(--accent-gold)", marginBottom: "1rem" }}>
-                                Since you do not have an in-house restaurant, provide links to local delivery services so your guests can easily order food to their room.
-                            </p>
-
-                            <div className={styles.formGroup}>
-                                <label>Zomato Hotel URL</label>
-                                <span className={styles.helpText}>Link to a specific local restaurant or a curated Zomato location page.</span>
-                                <input
-                                    type="url"
-                                    className={styles.inputField}
-                                    placeholder="https://www.zomato.com/your-city/local-eats"
-                                    value={zomatoLink}
-                                    onChange={(e) => setZomatoLink(e.target.value)}
-                                />
-                            </div>
-
-                            <div className={styles.formGroup}>
-                                <label>Swiggy Hotel URL</label>
-                                <span className={styles.helpText}>Link to a specific local restaurant or a curated Swiggy location page.</span>
-                                <input
-                                    type="url"
-                                    className={styles.inputField}
-                                    placeholder="https://www.swiggy.com/city/local-eats"
-                                    value={swiggyLink}
-                                    onChange={(e) => setSwiggyLink(e.target.value)}
-                                />
-                            </div>
+                            <label htmlFor="restaurant-toggle" style={{ fontWeight: 600, cursor: 'pointer' }}>
+                                Enable In-House Restaurant Module
+                            </label>
+                            <Badge variant={form.hasInHouseRestaurant ? "success" : "neutral"} style={{ marginLeft: 'auto' }}>
+                                {form.hasInHouseRestaurant ? "Active" : "Disabled"}
+                            </Badge>
                         </div>
-                    )}
-                </div>
 
-                <div style={{ textAlign: 'right' }}>
-                    <button type="submit" className={styles.saveBtn} disabled={isSaving}>
-                        {isSaving ? "Saving..." : "Save Changes"}
-                    </button>
+                        {!form.hasInHouseRestaurant && (
+                            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.5rem', background: 'rgba(245,158,11,0.05)', borderRadius: '10px', border: '1px solid rgba(245,158,11,0.2)' }}>
+                                <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                    <strong style={{ color: 'var(--accent-gold)' }}>External Delivery Integration:</strong> Since you don't have an in-house kitchen, you can provide links to popular delivery platforms. These will be shown on the guest dashboard for easy ordering.
+                                </p>
+                                <Input
+                                    label="Zomato Property Link"
+                                    value={form.zomatoLink}
+                                    onChange={e => setForm({ ...form, zomatoLink: e.target.value })}
+                                    placeholder="https://www.zomato.com/..."
+                                />
+                                <Input
+                                    label="Swiggy Property Link"
+                                    value={form.swiggyLink}
+                                    onChange={e => setForm({ ...form, swiggyLink: e.target.value })}
+                                    placeholder="https://www.swiggy.com/..."
+                                />
+                            </div>
+                        )}
+                    </div>
+                </Card>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                    <Button variant="outline" type="button" onClick={() => window.location.reload()}>Discard Changes</Button>
+                    <Button variant="primary" type="submit" loading={saving}>Apply Configuration</Button>
                 </div>
             </form>
         </div>

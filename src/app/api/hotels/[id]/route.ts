@@ -1,11 +1,21 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSession } from '@/lib/auth';
+import { getRequestAccess, hasAccessRole, resolveRequestedHotel } from '@/lib/apiAccess';
 
 type Params = Promise<{ id: string }>;
 
 // GET /api/hotels/[id]
-export async function GET(_req: Request, { params }: { params: Params }) {
+export async function GET(req: NextRequest, { params }: { params: Params }) {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { id } = await params;
+    const access = getRequestAccess(req, session);
+    if (!resolveRequestedHotel(access, id)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     try {
         const hotel = await prisma.hotel.findUnique({
             where: { id },
@@ -32,11 +42,22 @@ export async function GET(_req: Request, { params }: { params: Params }) {
 }
 
 // PUT /api/hotels/[id]
-export async function PUT(request: Request, { params }: { params: Params }) {
+export async function PUT(request: NextRequest, { params }: { params: Params }) {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { id } = await params;
+    const access = getRequestAccess(request, session);
+    if (
+        !hasAccessRole(access, ['SUPER_ADMIN', 'OWNER', 'HOTEL_ADMIN', 'ADMIN']) ||
+        !resolveRequestedHotel(access, id)
+    ) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     try {
         const body = await request.json();
-        const { name, location, roomCount, status } = body;
+        const { name, location, roomCount, status, isTaxApplicable, hasInHouseRestaurant, zomatoLink, swiggyLink } = body;
 
         const hotel = await prisma.hotel.update({
             where: { id },
@@ -45,8 +66,13 @@ export async function PUT(request: Request, { params }: { params: Params }) {
                 ...(location && { location }),
                 ...(roomCount !== undefined && { roomCount: parseInt(String(roomCount)) }),
                 ...(status && { status }),
+                ...(isTaxApplicable !== undefined && { isTaxApplicable: !!isTaxApplicable }),
+                ...(hasInHouseRestaurant !== undefined && { hasInHouseRestaurant: !!hasInHouseRestaurant }),
+                ...(zomatoLink !== undefined && { zomatoLink }),
+                ...(swiggyLink !== undefined && { swiggyLink }),
             },
         });
+
 
         return NextResponse.json({ hotel });
     } catch (err) {
@@ -56,8 +82,16 @@ export async function PUT(request: Request, { params }: { params: Params }) {
 }
 
 // DELETE /api/hotels/[id]
-export async function DELETE(_req: Request, { params }: { params: Params }) {
+export async function DELETE(req: NextRequest, { params }: { params: Params }) {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { id } = await params;
+    const access = getRequestAccess(req, session);
+    if (!access.isSuperAdmin) {
+        return NextResponse.json({ error: 'Super Admin access required' }, { status: 403 });
+    }
+
     try {
         await prisma.hotel.delete({ where: { id } });
         return NextResponse.json({ success: true });

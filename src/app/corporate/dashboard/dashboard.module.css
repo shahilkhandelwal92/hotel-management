@@ -1,0 +1,324 @@
+.page {
+    min-height: 100vh;
+    padding: clamp(1rem, 3vw, 2.5rem);
+    background:
+        radial-gradient(circle at 10% 0%, rgba(104, 87, 245, 0.14), transparent 28rem),
+        radial-gradient(circle at 95% 15%, rgba(255, 107, 122, 0.1), transparent 24rem),
+        var(--bg-primary);
+}
+
+.header {
+    max-width: 1420px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 auto 1rem;
+}
+
+.brand,
+.headerActions,
+.eventMeta span {
+    display: flex;
+    align-items: center;
+}
+
+.brand {
+    gap: 0.6rem;
+    color: var(--text-primary);
+    font-weight: 800;
+}
+
+.brand > span {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+    color: #fff;
+}
+
+.headerActions {
+    gap: 0.45rem;
+}
+
+.hero {
+    max-width: 1420px;
+    min-height: 230px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+    margin: 0 auto 1rem;
+    padding: clamp(1.5rem, 4vw, 2.8rem);
+    border-radius: var(--radius-lg);
+    background:
+        radial-gradient(circle at 84% 10%, rgba(255, 107, 122, 0.3), transparent 19rem),
+        linear-gradient(135deg, #1d1938, #4c37aa 60%, #745eff);
+    box-shadow: var(--shadow-md);
+}
+
+.hero h1,
+.hero p {
+    color: #fff;
+}
+
+.hero p {
+    max-width: 650px;
+    margin-top: 0.65rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.eyebrow {
+    margin-bottom: 0.45rem;
+    color: #d5d0ff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.eventPicker {
+    min-width: min(100%, 310px);
+    display: grid;
+    gap: 0.35rem;
+}
+
+.eventPicker span {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.eventPicker select {
+    min-height: 46px;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    background: rgba(17, 13, 34, 0.62);
+    color: #fff;
+}
+
+.eventHeader,
+.metrics,
+.attendance,
+.empty,
+.loading,
+.error {
+    max-width: 1420px;
+    margin-inline: auto;
+}
+
+.eventHeader {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.4rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+}
+
+.eventHeader h2 {
+    margin-top: 0.65rem;
+}
+
+.eventHeader p {
+    margin-top: 0.25rem;
+}
+
+.eventMeta {
+    display: grid;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+}
+
+.eventMeta span {
+    gap: 0.4rem;
+}
+
+.metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-block: 1rem;
+}
+
+.metrics article {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+}
+
+.metrics article > span {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border-radius: 13px;
+    background: var(--surface-accent);
+    color: var(--brand-primary);
+}
+
+.metrics .mint { background: rgba(44, 201, 165, 0.12); color: var(--brand-mint); }
+.metrics .coral { background: rgba(255, 107, 122, 0.12); color: var(--brand-coral); }
+.metrics .violet { background: rgba(168, 85, 247, 0.12); color: var(--brand-secondary); }
+
+.metrics small,
+.metrics strong {
+    display: block;
+}
+
+.metrics small {
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+}
+
+.metrics strong {
+    color: var(--text-primary);
+    font-size: 1.55rem;
+    letter-spacing: -0.04em;
+}
+
+.attendance {
+    padding: 1.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+}
+
+.sectionTitle {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.sectionTitle h2 {
+    font-size: 1.25rem;
+}
+
+.sectionTitle p {
+    margin-top: 0.2rem;
+    font-size: 0.8rem;
+}
+
+.sectionTitle > span {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.tableWrap {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 13px;
+}
+
+.tableWrap table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.tableWrap th,
+.tableWrap td {
+    padding: 0.8rem 0.9rem;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+}
+
+.tableWrap th {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.tableWrap td {
+    color: var(--text-primary);
+    font-size: 0.8rem;
+}
+
+.tableWrap td small {
+    display: block;
+    margin-top: 0.16rem;
+    color: var(--text-muted);
+}
+
+.tableEmpty {
+    height: 130px;
+    color: var(--text-secondary) !important;
+    text-align: center !important;
+}
+
+.empty,
+.loading {
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+    text-align: center;
+}
+
+.empty svg {
+    color: var(--brand-primary);
+}
+
+.error {
+    margin-block: 1rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid rgba(220, 63, 93, 0.18);
+    border-radius: 12px;
+    background: rgba(220, 63, 93, 0.08);
+    color: var(--error);
+}
+
+@media (max-width: 900px) {
+    .metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .hero,
+    .eventHeader {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .eventPicker {
+        width: 100%;
+    }
+}
+
+@media (max-width: 560px) {
+    .metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .header {
+        align-items: flex-start;
+    }
+
+    .headerActions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sectionTitle {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

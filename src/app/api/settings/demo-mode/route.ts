@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSession, hasAnyRole } from '@/lib/auth';
 
 async function ensureSettingsTable() {
     await prisma.$executeRawUnsafe(`
@@ -25,6 +26,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+    const session = await getSession();
+    if (!hasAnyRole(session, ['SUPER_ADMIN', 'OWNER'])) {
+        return NextResponse.json({ error: 'Super Admin access required' }, { status: 403 });
+    }
+
     try {
         await ensureSettingsTable();
         const { demoMode } = await request.json();

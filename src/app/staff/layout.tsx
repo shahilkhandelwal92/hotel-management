@@ -3,90 +3,55 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Bell, Building2, LogOut } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import styles from "./staff.module.css";
 
-interface User {
+type StaffUser = {
     name: string;
-    roles: { role: { name: string } }[];
-}
+    email: string;
+    hotel?: { name?: string } | null;
+    roles?: { role: { name: string } }[];
+};
 
-export default function StaffLayout({
-    children,
-}: {
-    children: React.ReactNode;
-}) {
-    const [user, setUser] = useState<User | null>(null);
+export default function StaffLayout({ children }: { children: React.ReactNode }) {
+    const [user, setUser] = useState<StaffUser | null>(null);
     const router = useRouter();
 
-    const handleLogout = async () => {
+    useEffect(() => {
+        fetch("/api/auth/me").then(async (response) => {
+            if (!response.ok) {
+                router.replace("/login");
+                return;
+            }
+            const data = await response.json();
+            setUser(data.user);
+        });
+    }, [router]);
+
+    const logout = async () => {
         await fetch("/api/auth/logout", { method: "POST" });
-        router.push("/login");
+        router.replace("/login");
     };
 
-    useEffect(() => {
-        fetch("/api/auth/me")
-            .then(r => r.json())
-            .then(d => { if (d.user) setUser(d.user); });
-    }, []);
-
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
-            <header style={{
-                height: '70px',
-                background: 'var(--bg-secondary)',
-                borderBottom: '1px solid var(--border-color)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '0 2rem',
-                position: 'sticky',
-                top: 0,
-                zIndex: 100,
-                backdropFilter: 'blur(10px)'
-            }}>
-                <Link href="/staff/dashboard" style={{ textDecoration: 'none', color: 'var(--accent-gold)', fontWeight: 800, fontSize: '1.2rem', letterSpacing: '1px' }}>
-                    GRAND IMPERIAL <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>STAFF</span>
+        <div className={styles.staffLayout}>
+            <header className={styles.topBar}>
+                <Link href="/staff/dashboard" className={styles.brand}>
+                    <span><Building2 size={20} /></span>
+                    <div><strong>StayOS People</strong><small>{user?.hotel?.name || "Employee workspace"}</small></div>
                 </Link>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+                <div className={styles.headerActions}>
+                    <button className={styles.iconButton} aria-label="Notifications"><Bell size={17} /></button>
                     <ThemeToggle />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: "0.9rem", fontWeight: 600 }}>{user?.name || "Authenticating..."}</div>
-                            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{user?.roles?.[0]?.role?.name || "Wait..."}</div>
-                        </div>
-                        <div style={{
-                            width: '40px', height: '40px', borderRadius: '12px',
-                            background: 'linear-gradient(135deg, var(--accent-gold), #d4af37)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontWeight: 800
-                        }}>
-                            {user?.name?.[0] || "?"}
-                        </div>
-                        <button
-                            onClick={handleLogout}
-                            style={{
-                                background: "none",
-                                border: "1px solid var(--border-color)",
-                                color: "var(--text-secondary)",
-                                padding: "0.5rem 1rem",
-                                borderRadius: "10px",
-                                fontSize: "0.8rem",
-                                fontWeight: 500,
-                                cursor: "pointer",
-                                transition: "all 0.2s"
-                            }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#ef4444"; (e.currentTarget as HTMLElement).style.color = "#ef4444"; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border-color)"; (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)"; }}
-                        >
-                            Logout
-                        </button>
+                    <div className={styles.profile}>
+                        <span>{user?.name?.slice(0, 1).toUpperCase() || "S"}</span>
+                        <div><strong>{user?.name || "Loading..."}</strong><small>{user?.roles?.[0]?.role.name || "Staff"}</small></div>
                     </div>
+                    <button className={styles.iconButton} onClick={logout} aria-label="Sign out"><LogOut size={17} /></button>
                 </div>
             </header>
-
-            <main style={{ padding: '2rem' }}>
-                {children}
-            </main>
+            <main className={styles.contentArea}>{children}</main>
         </div>
     );
 }

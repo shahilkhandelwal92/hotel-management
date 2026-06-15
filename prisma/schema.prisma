@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -63,6 +63,7 @@ model Hotel {
   accessCredentials  AccessCredential[]
   accessLogs         AccessLog[]
   staffAttendanceLogs StaffAttendanceLog[]
+  userRoles          UserRole[]
 }
 
 // Handles Super Admins, Hotel Admins, Staff, and Corporate Clients
@@ -127,8 +128,10 @@ model UserRole {
   user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   roleId  String
   role    Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  hotelId String?
+  hotel   Hotel?  @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   
-  @@unique([userId, roleId])
+  @@unique([userId, roleId, hotelId])
 }
 
 // Stores dynamic subscriptions for properties
@@ -267,7 +270,7 @@ model Amenity {
   pricingType    String  @default("CHARGEABLE") // FREE, CHARGEABLE
   isTaxApplicable Boolean @default(true) // Whether tax applies
   
-  customSlots Json? @default("[]") // Array of { id: string, name: string, startTime: string, endTime: string }
+  customSlots Json? // Array of { id: string, name: string, startTime: string, endTime: string }
 
   hotelId String
   hotel   Hotel  @relation(fields: [hotelId], references: [id])
@@ -283,6 +286,8 @@ model AmenityBooking {
   
   hotelId       String
   hotel         Hotel    @relation(fields: [hotelId], references: [id])
+  reservationId String?
+  reservation   Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
 
   guestName     String
   guestContact  String
@@ -353,14 +358,18 @@ model OrderItem {
 // Service requests placed by guests
 model GuestRequest {
   id          String @id @default(uuid())
-  guestId     String
-  guest       Guest  @relation(fields: [guestId], references: [id])
+  guestId     String?
+  guest       Guest?  @relation(fields: [guestId], references: [id])
+  reservationId String?
+  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: Cascade)
   requestType String // e.g., "Extra Bed", "Housekeeping"
   status      String @default("Pending") // Pending, Approved, Rejected, Paid
   amount      Float  @default(0) // Added by staff upon approval
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([reservationId, createdAt])
 }
 
 // Represents bookable areas (e.g., Banquet, Lawn, Restaurant)
@@ -586,6 +595,9 @@ model Reservation {
   invoices        Invoice[]
   folios          Folio[]
   accessCredentials AccessCredential[]
+  guestRequests     GuestRequest[]
+  amenityBookings   AmenityBooking[]
+  posOrders         PosOrder[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -611,7 +623,7 @@ model HousekeepingTask {
   priority      String   @default("Normal") // Low, Normal, High, Urgent
   assignedToId  String?
   assignedTo    User?    @relation("HousekeepingAssignee", fields: [assignedToId], references: [id])
-  checklist     Json?    @default("[]") // Array of { item: string, done: boolean }
+  checklist     Json? // Array of { item: string, done: boolean }
   notes         String?
   status        String   @default("Pending") // Pending, InProgress, Completed, Skipped
   completedAt   DateTime?
@@ -802,7 +814,7 @@ model GuestCRMProfile {
   idNumber        String?
 
   segment         String   @default("Leisure") // Leisure, Corporate, VIP, Group
-  preferences     Json?    @default("{}") // Room type, floor, dietary, etc.
+  preferences     Json? // Room type, floor, dietary, etc.
   loyaltyPoints   Int      @default(0)
   totalStays      Int      @default(0)
   totalSpend      Float    @default(0)
@@ -962,6 +974,7 @@ model FolioTransaction {
   description     String
   amount          Float    // Positive = charge/debit, Negative = credit/payment
   referenceId     String?  // invoiceId, paymentId, etc.
+  paymentMode     String?  // Cash, Card, UPI, BankTransfer, Online
   nightAuditId    String?  // Auto-posted by night audit
   postedById      String?  // Staff who posted
   postedAt        DateTime @default(now())
@@ -1157,6 +1170,7 @@ model PosOrder {
   tableNumber   String?
   orderSource   String   @default("Walkin") // Walkin, InHouse, Event, RoomService
   reservationId String?
+  reservation   Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   guestName     String?
   kotPrinted    Boolean  @default(false)
   subtotal      Float    @default(0)

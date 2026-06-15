@@ -1,15 +1,27 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { getRequestAccess, hasAccessRole, resolveRequestedHotel } from '@/lib/apiAccess';
 import crypto from 'crypto';
 
 // GET /api/events — list all events for the hotel admin
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const access = getRequestAccess(request, session);
+    if (!hasAccessRole(access, [
+        'SUPER_ADMIN', 'OWNER', 'HOTEL_ADMIN', 'ADMIN', 'MANAGER', 'EVENT_MANAGER', 'CORPORATE',
+    ])) {
+        return NextResponse.json({ error: 'Event access required' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const hotelId = searchParams.get('hotelId');
+    const hotelId = resolveRequestedHotel(access, searchParams.get('hotelId'));
+    if (!hotelId) return NextResponse.json({ error: 'Invalid hotel context' }, { status: 403 });
+
     try {
         const events = await prisma.corporateEvent.findMany({
-            where: hotelId ? { hotelId } : undefined,
+            where: { hotelId },
             orderBy: { date: 'desc' },
             include: { _count: { select: { guests: true } }, hotel: { select: { name: true } } },
         });
@@ -21,31 +33,23 @@ export async function GET(request: Request) {
 }
 
 // POST /api/events — create a new corporate event
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const access = getRequestAccess(request, session);
+    if (!hasAccessRole(access, [
+        'SUPER_ADMIN', 'OWNER', 'HOTEL_ADMIN', 'ADMIN', 'MANAGER', 'EVENT_MANAGER',
+    ])) {
+        return NextResponse.json({ error: 'Event administration access required' }, { status: 403 });
+    }
+
     try {
         const body = await request.json();
         const { name, corporateName, date, expectedCount } = body;
-        let { hotelId } = body;
+        const hotelId = resolveRequestedHotel(access, body.hotelId);
 
-        if (!name || !corporateName || !date) {
-            return NextResponse.json({ error: 'name, corporateName, and date are required' }, { status: 400 });
-        }
-
-        // If no hotelId in body, try to get it from the user's JWT session
-        if (!hotelId) {
-            try {
-                const session = await getSession();
-                hotelId = session?.hotelId;
-            } catch { /* ignore, fallback below */ }
-        }
-
-        // Final fallback: use any existing hotel
-        if (!hotelId) {
-            const hotel = await prisma.hotel.findFirst({ orderBy: { createdAt: 'asc' } });
-            if (!hotel) {
-                return NextResponse.json({ error: 'No hotel found. Please add a hotel from the dashboard first.' }, { status: 400 });
-            }
-            hotelId = hotel.id;
+        if (!name || !corporateName || !date || !hotelId) {
+            return NextResponse.json({ error: 'name, corporateName, date, and valid hotel context are required' }, { status: 400 });
         }
 
         const accessCode = crypto.randomBytes(4).toString('hex').toUpperCase();

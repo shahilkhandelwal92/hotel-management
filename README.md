@@ -12,9 +12,12 @@ Enterprise hotel management platform built with Next.js 16, PostgreSQL (Neon), a
 ## Quick Start
 ```bash
 npm install
-npx prisma db push
+npm run prisma:validate
+npm run prisma:generate
+# Apply reviewed migrations before starting the app.
 npm run dev
 ```
 
 ## Environment Variables
-See `.env.example`
+Copy `.env.example` to `.env.local`. Prisma commands in this project load
+`.env.local` locally and use deployment environment variables in production.

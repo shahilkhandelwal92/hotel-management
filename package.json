@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "jest --runInBand",
+    "typecheck": "tsc --noEmit",
+    "prisma:validate": "node scripts/prisma-env.mjs validate",
+    "prisma:generate": "node scripts/prisma-env.mjs generate",
+    "postinstall": "node scripts/prisma-env.mjs generate"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
@@ -14,10 +19,13 @@
     "@capacitor/core": "^8.1.0",
     "@prisma/client": "^6.4.1",
     "bcryptjs": "^3.0.3",
+    "date-fns": "^4.1.0",
     "jose": "^6.1.3",
+    "lucide-react": "^0.576.0",
     "next": "16.1.6",
     "next-intl": "^4.8.3",
     "next-themes": "^0.4.6",
+    "pdfmake": "^0.3.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "winston": "^3.19.0"
@@ -28,7 +36,8 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.19.35",
-    "@types/react": "^19.2.14",
+    "@types/pdfmake": "^0.3.2",
+    "@types/react": "19.2.14",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",

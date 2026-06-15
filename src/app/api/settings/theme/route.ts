@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getSession, hasAnyRole } from '@/lib/auth';
 
 // Server-side theme storage using a raw settings JSON approach
 // We'll use our database to store theme per hotel via a "global" settings key
@@ -31,6 +32,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+    const session = await getSession();
+    if (!hasAnyRole(session, ['SUPER_ADMIN', 'OWNER'])) {
+        return NextResponse.json({ error: 'Super Admin access required' }, { status: 403 });
+    }
+
     try {
         await ensureSettingsTable();
         const theme = await request.json();

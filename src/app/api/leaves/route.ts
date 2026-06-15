@@ -1,67 +1,124 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { getRequestAccess, hasAccessRole, resolveRequestedHotel } from "@/lib/apiAccess";
 
-// GET /api/leaves?hotelId=xxx
-export async function GET(request: Request) {
+const LEAVE_ADMIN_ROLES = ["SUPER_ADMIN", "OWNER", "HOTEL_ADMIN", "ADMIN", "HR", "MANAGER"];
+
+export async function GET(request: NextRequest) {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const access = getRequestAccess(request, session);
+    const isAdmin = hasAccessRole(access, LEAVE_ADMIN_ROLES);
     const { searchParams } = new URL(request.url);
-    const hotelId = searchParams.get('hotelId');
-    try {
-        const requests = await prisma.leaveRequest.findMany({
-            where: hotelId ? { user: { hotelId } } : {},
-            orderBy: { createdAt: 'desc' },
-            include: {
-                user: { select: { name: true, hotelId: true } },
-                leaveType: { select: { name: true } },
-            },
-            take: 100,
+    const scope = searchParams.get("scope");
+
+    if (scope === "me" || !isAdmin) {
+        const user = await prisma.user.findUnique({ where: { id: session.id }, select: { hotelId: true } });
+        const hotelId = session.hotelId || user?.hotelId;
+        if (!hotelId) return NextResponse.json({ leaves: [], balances: [] });
+
+        const yearStart = new Date(new Date().getFullYear(), 0, 1);
+        const [leaves, leaveTypes] = await Promise.all([
+            prisma.leaveRequest.findMany({
+                where: { userId: session.id },
+                include: { leaveType: true },
+                orderBy: { createdAt: "desc" },
+            }),
+            prisma.leaveType.findMany({ where: { hotelId }, orderBy: { name: "asc" } }),
+        ]);
+        const approved = leaves.filter((leave) => leave.status === "Approved" && leave.startDate >= yearStart);
+        const balances = leaveTypes.map((leaveType) => {
+            const used = approved
+                .filter((leave) => leave.leaveTypeId === leaveType.id)
+                .reduce((sum, leave) => sum + Math.floor((leave.endDate.getTime() - leave.startDate.getTime()) / 86_400_000) + 1, 0);
+            return { ...leaveType, used, available: Math.max(0, leaveType.defaultDays - used) };
         });
-        return NextResponse.json({ requests });
-    } catch (err) {
-        console.error('GET /api/leaves:', err);
-        return NextResponse.json({ error: 'Failed to fetch leave requests' }, { status: 500 });
+        return NextResponse.json({ leaves, balances });
     }
+
+    const hotelId = resolveRequestedHotel(access, searchParams.get("hotelId"));
+    if (!hotelId) return NextResponse.json({ error: "Choose an active property" }, { status: 403 });
+    const requests = await prisma.leaveRequest.findMany({
+        where: { user: { OR: [{ hotelId }, { roles: { some: { hotelId } } }] } },
+        orderBy: { createdAt: "desc" },
+        include: {
+            user: { select: { id: true, name: true, hotelId: true } },
+            leaveType: { select: { name: true } },
+        },
+        take: 250,
+    });
+    return NextResponse.json({ requests });
 }
 
-// POST /api/leaves — apply for leave
-export async function POST(request: Request) {
-    try {
-        const body = await request.json();
-        const { userId, leaveTypeId, startDate, endDate, reason } = body;
-        if (!userId || !leaveTypeId || !startDate || !endDate || !reason) {
-            return NextResponse.json({ error: 'All fields required' }, { status: 400 });
-        }
-        const req = await prisma.leaveRequest.create({
-            data: {
-                userId,
-                leaveTypeId,
-                startDate: new Date(startDate),
-                endDate: new Date(endDate),
-                reason,
-                status: 'Pending',
-            },
-        });
-        return NextResponse.json({ request: req }, { status: 201 });
-    } catch (err) {
-        console.error('POST /api/leaves:', err);
-        return NextResponse.json({ error: 'Failed to apply leave' }, { status: 500 });
+export async function POST(request: NextRequest) {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const access = getRequestAccess(request, session);
+    const isAdmin = hasAccessRole(access, LEAVE_ADMIN_ROLES);
+    const body = await request.json();
+    const userId = isAdmin && body.userId ? body.userId : session.id;
+    const startDate = new Date(body.startDate);
+    const endDate = new Date(body.endDate);
+
+    if (!body.leaveTypeId || Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate < startDate || !body.reason?.trim()) {
+        return NextResponse.json({ error: "Leave type, valid dates, and reason are required" }, { status: 400 });
     }
+
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { hotelId: true, roles: { select: { hotelId: true } } },
+    });
+    const userHotelId = session.hotelId || user?.hotelId || user?.roles.find((role) => role.hotelId)?.hotelId;
+    const leaveType = await prisma.leaveType.findFirst({ where: { id: body.leaveTypeId, hotelId: userHotelId || "" } });
+    if (!leaveType) return NextResponse.json({ error: "Leave type is not available for this property" }, { status: 404 });
+
+    const overlap = await prisma.leaveRequest.findFirst({
+        where: {
+            userId,
+            status: { in: ["Pending", "Approved"] },
+            startDate: { lte: endDate },
+            endDate: { gte: startDate },
+        },
+    });
+    if (overlap) return NextResponse.json({ error: "These dates overlap an existing leave request" }, { status: 409 });
+
+    const leave = await prisma.leaveRequest.create({
+        data: {
+            userId,
+            leaveTypeId: leaveType.id,
+            startDate,
+            endDate,
+            reason: body.reason.trim().slice(0, 500),
+            status: "Pending",
+        },
+        include: { leaveType: true },
+    });
+    return NextResponse.json({ leave }, { status: 201 });
 }
 
-// PATCH /api/leaves — approve/reject
-export async function PATCH(request: Request) {
-    try {
-        const body = await request.json();
-        const { id, status } = body;
-        if (!id || !['Approved', 'Rejected'].includes(status)) {
-            return NextResponse.json({ error: 'id and status (Approved/Rejected) required' }, { status: 400 });
-        }
-        const req = await prisma.leaveRequest.update({
-            where: { id },
-            data: { status },
-        });
-        return NextResponse.json({ request: req });
-    } catch (err) {
-        console.error('PATCH /api/leaves:', err);
-        return NextResponse.json({ error: 'Failed to update leave' }, { status: 500 });
+export async function PATCH(request: NextRequest) {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const access = getRequestAccess(request, session);
+    if (!hasAccessRole(access, LEAVE_ADMIN_ROLES)) {
+        return NextResponse.json({ error: "HR access required" }, { status: 403 });
     }
+
+    const body = await request.json();
+    if (!body.id || !["Approved", "Rejected"].includes(body.status)) {
+        return NextResponse.json({ error: "Choose Approved or Rejected" }, { status: 400 });
+    }
+    const existing = await prisma.leaveRequest.findUnique({
+        where: { id: body.id },
+        include: { user: { select: { hotelId: true } } },
+    });
+    if (!existing || !resolveRequestedHotel(access, existing.user.hotelId)) {
+        return NextResponse.json({ error: "Leave request not found" }, { status: 404 });
+    }
+    const leave = await prisma.leaveRequest.update({
+        where: { id: existing.id },
+        data: { status: body.status },
+    });
+    return NextResponse.json({ leave });
 }

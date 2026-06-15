@@ -1,191 +1,266 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import styles from "../../admin/inventory/inventory.module.css"; // Reuse inventory styles
+import { useEffect, useMemo, useState } from "react";
+import { Building2, Edit3, Plus, Search, ShieldCheck, Trash2, UserRoundCog, UsersRound } from "lucide-react";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Modal from "@/components/ui/Modal";
+import styles from "./users.module.css";
 
-type UserWithRoles = {
+type UserRecord = {
     id: string;
     name: string;
     email: string;
     roles: string[];
+    hotelIds: string[];
+    assignments: { role: string; hotelId: string | null; hotelName: string }[];
 };
 
+type Hotel = { id: string; name: string; location: string };
 type AuditLog = {
     id: string;
     action: string;
     entityType: string;
-    details: string;
+    details?: string;
     createdAt: string;
     user?: { name: string; email: string };
 };
 
-const ALL_ROLES = ["SUPER_ADMIN", "HOTEL_ADMIN", "STAFF", "KITCHEN", "CORPORATE"];
+const ALL_ROLES = [
+    "SUPER_ADMIN",
+    "HOTEL_ADMIN",
+    "ACCOUNTING",
+    "FRONT_DESK",
+    "STAFF",
+    "HOUSEKEEPING",
+    "KITCHEN",
+    "RESTAURANT",
+    "HR",
+    "CORPORATE",
+];
 
-export default function UsersAuditPage() {
-    const [activeTab, setActiveTab] = useState("Users");
-    const [users, setUsers] = useState<UserWithRoles[]>([]);
+const GLOBAL_ROLES = ["SUPER_ADMIN", "OWNER"];
+const emptyForm = { name: "", email: "", password: "", roles: [] as string[], hotelIds: [] as string[] };
+
+export default function UsersPage() {
+    const [tab, setTab] = useState<"users" | "audit">("users");
+    const [users, setUsers] = useState<UserRecord[]>([]);
+    const [hotels, setHotels] = useState<Hotel[]>([]);
     const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+    const [query, setQuery] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
+    const [showForm, setShowForm] = useState(false);
+    const [editing, setEditing] = useState<UserRecord | null>(null);
+    const [deleting, setDeleting] = useState<UserRecord | null>(null);
+    const [form, setForm] = useState(emptyForm);
 
-    // Form State
-    const [name, setName] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [roles, setRoles] = useState<string[]>([]);
+    const loadUsers = async () => {
+        setLoading(true);
+        const [usersResponse, hotelsResponse] = await Promise.all([fetch("/api/users"), fetch("/api/hotels")]);
+        const [usersData, hotelsData] = await Promise.all([usersResponse.json(), hotelsResponse.json()]);
+        if (!usersResponse.ok) setError(usersData.error || "Users could not be loaded.");
+        else setUsers(usersData.users || []);
+        setHotels(hotelsData.hotels || []);
+        setLoading(false);
+    };
+
+    const loadAudit = async () => {
+        setLoading(true);
+        const response = await fetch("/api/audit");
+        const data = await response.json();
+        if (!response.ok) setError(data.error || "Audit logs could not be loaded.");
+        else setAuditLogs(Array.isArray(data) ? data : data.logs || []);
+        setLoading(false);
+    };
 
     useEffect(() => {
-        if (activeTab === "Users") fetchUsers();
-        if (activeTab === "Audit Logs") fetchAuditLogs();
-    }, [activeTab]);
+        const timer = window.setTimeout(() => {
+            if (tab === "users") void loadUsers();
+            else void loadAudit();
+        }, 0);
+        return () => window.clearTimeout(timer);
+    }, [tab]);
 
-    const fetchUsers = async () => {
-        const res = await fetch("/api/users");
-        if (res.ok) setUsers(await res.json());
+    const visibleUsers = useMemo(() => {
+        const normalized = query.trim().toLowerCase();
+        return users.filter((user) => !normalized || `${user.name} ${user.email} ${user.roles.join(" ")}`.toLowerCase().includes(normalized));
+    }, [query, users]);
+
+    const openCreate = () => {
+        setEditing(null);
+        setForm(emptyForm);
+        setShowForm(true);
     };
 
-    const fetchAuditLogs = async () => {
-        const res = await fetch("/api/audit");
-        if (res.ok) setAuditLogs(await res.json());
+    const openEdit = (user: UserRecord) => {
+        setEditing(user);
+        setForm({ name: user.name, email: user.email, password: "", roles: user.roles, hotelIds: user.hotelIds });
+        setShowForm(true);
     };
 
-    const handleCreateUser = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const res = await fetch("/api/users", {
-            method: "POST",
+    const toggle = (key: "roles" | "hotelIds", value: string) => {
+        setForm((current) => ({
+            ...current,
+            [key]: current[key].includes(value)
+                ? current[key].filter((item) => item !== value)
+                : [...current[key], value],
+        }));
+    };
+
+    const save = async () => {
+        setSaving(true);
+        setError("");
+        const response = await fetch(editing ? `/api/users/${editing.id}` : "/api/users", {
+            method: editing ? "PUT" : "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, email, password, roles })
+            body: JSON.stringify({
+                ...form,
+                password: form.password || undefined,
+            }),
         });
-        if (res.ok) {
-            setName(""); setEmail(""); setPassword(""); setRoles([]);
-            fetchUsers();
+        const data = await response.json();
+        if (!response.ok) setError(data.error || "User could not be saved.");
+        else {
+            setShowForm(false);
+            await loadUsers();
         }
+        setSaving(false);
     };
 
-    const toggleRole = (role: string) => {
-        if (roles.includes(role)) {
-            setRoles(roles.filter(r => r !== role));
-        } else {
-            setRoles([...roles, role]);
+    const remove = async () => {
+        if (!deleting) return;
+        setSaving(true);
+        const response = await fetch(`/api/users/${deleting.id}`, { method: "DELETE" });
+        const data = await response.json();
+        if (!response.ok) setError(data.error || "User could not be removed.");
+        else {
+            setDeleting(null);
+            await loadUsers();
         }
+        setSaving(false);
     };
 
     return (
-        <div className={`animate-fade-in ${styles.container}`}>
-            <div className={styles.header}>
+        <div className="page-shell animate-fade-in">
+            <div className="page-header">
                 <div>
-                    <h1>Staff Access & Audit Logs</h1>
-                    <p>Assign granular multiple roles to staff and view global system activity.</p>
+                    <div className="page-eyebrow">Organization access</div>
+                    <h1>People & roles</h1>
+                    <p className="page-subtitle">Assign employees to one or more properties with only the permissions their job requires.</p>
                 </div>
+                {tab === "users" && <Button onClick={openCreate}><Plus size={16} /> Add team member</Button>}
             </div>
 
-            <div className={styles.tabs}>
-                {["Users", "Audit Logs"].map(tab => (
-                    <button
-                        key={tab}
-                        className={`${styles.tabBtn} ${activeTab === tab ? styles.tabBtnActive : ''}`}
-                        onClick={() => setActiveTab(tab)}
-                    >
-                        {tab}
-                    </button>
-                ))}
+            {error && <div className={styles.error}>{error}<button onClick={() => setError("")}>×</button></div>}
+
+            <div className={styles.toolbar}>
+                <div className={styles.tabs}>
+                    <button data-active={tab === "users"} onClick={() => setTab("users")}><UsersRound size={16} /> Team</button>
+                    <button data-active={tab === "audit"} onClick={() => setTab("audit")}><ShieldCheck size={16} /> Audit trail</button>
+                </div>
+                {tab === "users" && <label className={styles.search}><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search people or roles" /></label>}
             </div>
 
-            {activeTab === "Users" && (
-                <div className={styles.card} style={{ display: 'flex', gap: '2rem' }}>
-                    <div style={{ flex: 1 }}>
-                        <h2 className={styles.cardTitle}>Platform Users</h2>
-                        <div className={styles.tableContainer}>
-                            <table className={styles.dataTable}>
-                                <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                        <th>Assigned Roles (Multi)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {users.map(u => (
-                                        <tr key={u.id}>
-                                            <td style={{ fontWeight: 'bold' }}>{u.name}</td>
-                                            <td>{u.email}</td>
-                                            <td>
-                                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                    {u.roles.map(r => (
-                                                        <span key={r} style={{ background: 'var(--accent-gold)', color: 'black', padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
-                                                            {r}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </td>
-                                        </tr>
+            {tab === "users" ? (
+                <>
+                    <div className="metric-grid">
+                        <div className="metric-card"><UsersRound size={20} color="var(--brand-primary)" /><div className="metric-value">{users.length}</div><p>Active user accounts</p></div>
+                        <div className="metric-card"><Building2 size={20} color="var(--success)" /><div className="metric-value">{hotels.length}</div><p>Properties assignable</p></div>
+                        <div className="metric-card"><ShieldCheck size={20} color="var(--brand-coral)" /><div className="metric-value">{users.filter((user) => user.roles.includes("SUPER_ADMIN")).length}</div><p>Global super admins</p></div>
+                    </div>
+
+                    <div className={styles.userGrid}>
+                        {visibleUsers.map((user) => (
+                            <article key={user.id} className={styles.userCard}>
+                                <div className={styles.userHead}>
+                                    <span>{user.name.slice(0, 2).toUpperCase()}</span>
+                                    <div><h3>{user.name}</h3><p>{user.email}</p></div>
+                                    <div className={styles.cardActions}>
+                                        <button onClick={() => openEdit(user)} aria-label={`Edit ${user.name}`}><Edit3 size={16} /></button>
+                                        <button onClick={() => setDeleting(user)} aria-label={`Remove ${user.name}`}><Trash2 size={16} /></button>
+                                    </div>
+                                </div>
+                                <div className={styles.roleList}>{user.roles.map((role) => <Badge key={role} variant={role === "SUPER_ADMIN" ? "primary" : role === "ACCOUNTING" ? "success" : "neutral"}>{role.replaceAll("_", " ")}</Badge>)}</div>
+                                <div className={styles.assignments}>
+                                    {user.assignments.map((assignment, index) => (
+                                        <div key={`${assignment.role}-${assignment.hotelId}-${index}`}>
+                                            <Building2 size={14} />
+                                            <span><strong>{assignment.hotelName}</strong><small>{assignment.role.replaceAll("_", " ")}</small></span>
+                                        </div>
                                     ))}
-                                </tbody>
-                            </table>
+                                </div>
+                            </article>
+                        ))}
+                        {!loading && visibleUsers.length === 0 && <div className={styles.empty}>No users match your search.</div>}
+                    </div>
+                </>
+            ) : (
+                <div className={styles.auditTable}>
+                    <div className={styles.auditHead}><span>Time</span><span>Actor</span><span>Action</span><span>Entity</span><span>Details</span></div>
+                    {auditLogs.map((log) => (
+                        <div key={log.id} className={styles.auditRow}>
+                            <span>{new Date(log.createdAt).toLocaleString("en-IN")}</span>
+                            <span><strong>{log.user?.name || "System"}</strong><small>{log.user?.email}</small></span>
+                            <span><Badge variant="neutral">{log.action}</Badge></span>
+                            <span>{log.entityType}</span>
+                            <span>{log.details || "Recorded change"}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <Modal
+                isOpen={showForm}
+                onClose={() => setShowForm(false)}
+                title={editing ? `Edit ${editing.name}` : "Add team member"}
+                footer={<><Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button><Button onClick={save} loading={saving}>{editing ? "Save changes" : "Create account"}</Button></>}
+            >
+                <div className={styles.form}>
+                    <div className={styles.formColumns}>
+                        <Input label="Full name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Employee name" />
+                        <Input label="Email address" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="name@hotel.com" />
+                    </div>
+                    <Input label={editing ? "New password (optional)" : "Temporary password"} type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} placeholder="At least 8 characters" />
+                    <div>
+                        <label className={styles.formLabel}>Job roles</label>
+                        <div className={styles.choiceGrid}>
+                            {ALL_ROLES.map((role) => (
+                                <button type="button" key={role} data-selected={form.roles.includes(role)} onClick={() => toggle("roles", role)}>
+                                    <UserRoundCog size={16} /><span>{role.replaceAll("_", " ")}</span>{form.roles.includes(role) && <CheckMark />}
+                                </button>
+                            ))}
                         </div>
                     </div>
-
-                    <div style={{ width: '320px' }}>
-                        <h2 className={styles.cardTitle}>Create Staff Member</h2>
-                        <form onSubmit={handleCreateUser}>
-                            <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Full Name</label>
-                            <input required value={name} onChange={e => setName(e.target.value)} className={styles.inputField} placeholder="Jane Doe" style={{ marginBottom: '1rem' }} />
-
-                            <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Email</label>
-                            <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className={styles.inputField} placeholder="jane@hotel.com" style={{ marginBottom: '1rem' }} />
-
-                            <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Temporary Password</label>
-                            <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className={styles.inputField} placeholder="••••••••" style={{ marginBottom: '1rem' }} />
-
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Assign Multiple Roles</label>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem', background: 'var(--bg-primary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                                {ALL_ROLES.map(role => (
-                                    <label key={role} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={roles.includes(role)}
-                                            onChange={() => toggleRole(role)}
-                                        />
-                                        {role}
-                                    </label>
+                    {!form.roles.every((role) => GLOBAL_ROLES.includes(role)) && (
+                        <div>
+                            <label className={styles.formLabel}>Property access</label>
+                            <div className={styles.choiceGrid}>
+                                {hotels.map((hotel) => (
+                                    <button type="button" key={hotel.id} data-selected={form.hotelIds.includes(hotel.id)} onClick={() => toggle("hotelIds", hotel.id)}>
+                                        <Building2 size={16} /><span>{hotel.name}<small>{hotel.location}</small></span>{form.hotelIds.includes(hotel.id) && <CheckMark />}
+                                    </button>
                                 ))}
                             </div>
-
-                            <button type="submit" className={`${styles.actionBtn} ${styles.primaryBtn}`} style={{ width: '100%' }}>Create User</button>
-                        </form>
-                    </div>
+                        </div>
+                    )}
                 </div>
-            )}
+            </Modal>
 
-            {activeTab === "Audit Logs" && (
-                <div className={styles.card}>
-                    <h2 className={styles.cardTitle}>System Audit Trail</h2>
-                    <div className={styles.tableContainer}>
-                        <table className={styles.dataTable}>
-                            <thead>
-                                <tr>
-                                    <th>Timestamp</th>
-                                    <th>Actor</th>
-                                    <th>Action</th>
-                                    <th>Entity</th>
-                                    <th>Details (JSON)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {auditLogs.map(log => (
-                                    <tr key={log.id}>
-                                        <td style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{new Date(log.createdAt).toLocaleString()}</td>
-                                        <td style={{ fontWeight: 'bold' }}>{log.user?.name || "System"} <br /><span style={{ fontWeight: 'normal', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{log.user?.email || "-"}</span></td>
-                                        <td><span style={{ background: 'rgba(212, 175, 55, 0.1)', color: 'var(--accent-gold)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem' }}>{log.action}</span></td>
-                                        <td>{log.entityType}</td>
-                                        <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            {log.details}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
+            <Modal
+                isOpen={Boolean(deleting)}
+                onClose={() => setDeleting(null)}
+                title="Remove team member"
+                footer={<><Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button><Button variant="danger" onClick={remove} loading={saving}>Remove access</Button></>}
+            >
+                <p>Remove <strong>{deleting?.name}</strong> from the organization? Their access will stop immediately.</p>
+            </Modal>
         </div>
     );
+}
+
+function CheckMark() {
+    return <span className={styles.check}>✓</span>;
 }

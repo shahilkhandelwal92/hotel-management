@@ -1,0 +1,251 @@
+.container {
+    min-height: 100vh;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+}
+
+.roleNav {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    padding: 2rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.roleBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.roleBtn:hover {
+    background: var(--bg-tertiary);
+}
+
+.activeRole {
+    background: var(--bg-primary) !important;
+    border-color: var(--accent-gold) !important;
+    color: var(--accent-gold) !important;
+    box-shadow: var(--glass-shadow);
+}
+
+.presentationMain {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 4rem;
+    padding: 4rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    align-items: center;
+}
+
+.contentSection {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+}
+
+.stepIndicator {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent-gold);
+}
+
+.roleTitle {
+    font-size: 2.5rem;
+    margin-top: 0.5rem;
+}
+
+.slideHeading {
+    font-size: 1.75rem;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.slideText {
+    font-size: 1.15rem;
+    color: var(--text-secondary);
+    max-width: 500px;
+    line-height: 1.7;
+}
+
+.slideNav {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.iconBtn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.iconBtn:hover:not(:disabled) {
+    border-color: var(--accent-gold);
+    color: var(--accent-gold);
+}
+
+.iconBtn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.dots {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border-color);
+    transition: all 0.3s;
+}
+
+.activeDot {
+    width: 24px;
+    border-radius: 4px;
+    background: var(--accent-gold);
+}
+
+.mediaSection {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.videoPlaceholder {
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+.videoPlaceholder::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    transition: background 0.3s;
+}
+
+.videoPlaceholder:hover::after {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.playOverlay {
+    z-index: 2;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.playButtonWrapper {
+    width: 80px;
+    height: 80px;
+    background: var(--accent-gold);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 5px;
+    /* Visual centering of triangle */
+    box-shadow: 0 0 30px rgba(212, 175, 55, 0.5);
+    transition: transform 0.3s ease;
+}
+
+.videoPlaceholder:hover .playButtonWrapper {
+    transform: scale(1.15);
+}
+
+.videoLabel {
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+    font-size: 1.1rem;
+}
+
+.videoSubLabel {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: -0.5rem;
+}
+
+.isPlaying .playButtonWrapper {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: none;
+    padding-left: 0;
+}
+
+.featuresList {
+    display: flex;
+    gap: 2rem;
+}
+
+.featureItem {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.footer {
+    padding: 2rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: center;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.goldLogo {
+    color: var(--accent-gold);
+}
+
+@media (max-width: 1024px) {
+    .presentationMain {
+        grid-template-columns: 1fr;
+        gap: 3rem;
+        padding: 2rem;
+    }
+}

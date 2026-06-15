@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Button from "@/components/ui/Button";
+import Table from "@/components/ui/Table";
+import Card from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
 
 const fmt = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -24,105 +28,112 @@ export default function AdminGSTReportPage() {
             .then(d => { setData(d); setLoading(false); });
     }, [hotelId]);
 
-    if (loading || !data) return <div style={{ padding: "4rem", textAlign: "center" }}>Loading GST Report...</div>;
-
-    const hotel = hotels.find(h => h.id === hotelId);
-    const s = data.summary;
-
     const exportCSV = () => {
         if (!data?.roomGST) return;
+        const hotel = hotels.find(h => h.id === hotelId);
         const rows = [["Month", "Taxable Value", "GST", "CGST", "SGST", "Guest Type"], ...data.roomGST.map((r: any) => [r.month, r.baseRevenue, r.gstAmount, r.cgst, r.sgst, r.guestType])];
         const csv = rows.map(r => r.join(",")).join("\n");
         const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
         a.download = `gst_report_${hotel?.name ?? "hotel"}_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     };
 
+    if (loading || !data) return <div style={{ padding: "4rem", textAlign: "center", color: 'var(--text-secondary)' }}>Loading GST Intelligence...</div>;
+
+    const s = data.summary;
+
     return (
-        <div style={{ padding: "2rem", maxWidth: 1100 }}>
-            <div style={{ marginBottom: "2rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
+        <div className="animate-fade-in" style={{ padding: '0 1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem' }}>
                 <div>
-                    <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0 }}>GST Report — {hotel?.name ?? "Loading..."}</h1>
-                    <p style={{ color: "var(--text-secondary)", margin: "0.3rem 0 0" }}>FY 2024-25 · {hotel?.location}</p>
+                    <h1 style={{ fontSize: '2rem', margin: 0 }}>GST Compliance Report</h1>
+                    <p style={{ color: 'var(--text-secondary)', marginTop: '0.4rem' }}>
+                        Fiscal Year 2024-25 &bull; Real-time tax liability tracking.
+                    </p>
                 </div>
-                <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-                    {hotels.length > 1 && <select value={hotelId} onChange={e => setHotelId(e.target.value)} style={{ padding: "0.5rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border-color)", background: "var(--bg-primary)", color: "var(--text-primary)", fontSize: "0.875rem" }}>
-                        {hotels.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
-                    </select>}
-                    <button onClick={exportCSV} style={{ padding: "0.5rem 1rem", borderRadius: "8px", border: "1px solid var(--border-color)", background: "none", color: "var(--text-primary)", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}>⬇️ Export CSV</button>
+                <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+                    {hotels.length > 1 && (
+                        <select
+                            value={hotelId}
+                            onChange={e => setHotelId(e.target.value)}
+                            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', padding: '0.5rem 0.8rem', borderRadius: '8px' }}
+                        >
+                            {hotels.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+                        </select>
+                    )}
+                    <Button variant="outline" size="sm" onClick={exportCSV}>Download GSTR-1 Draft</Button>
                 </div>
             </div>
 
-            {/* Summary */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
-                {[
-                    { label: "Taxable Value", value: fmt(s.totalTaxableValue), color: "#3b82f6" },
-                    { label: "Output GST", value: fmt(s.totalGSTLiability), color: "#f59e0b" },
-                    { label: "Input Tax Credit", value: fmt(s.inputTaxCredit), color: "#10b981" },
-                    { label: "Net Payable", value: fmt(s.netGSTPayable), color: "#ef4444" },
-                ].map((c, i) => (
-                    <div key={i} style={{ padding: "1.2rem", background: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
-                        <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "0.4rem" }}>{c.label}</div>
-                        <div style={{ fontSize: "1.5rem", fontWeight: 700, color: c.color }}>{c.value}</div>
-                    </div>
-                ))}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
+                <Card title="Taxable Value" subtitle="Total base revenue">
+                    <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--accent-blue)' }}>{fmt(s.totalTaxableValue)}</div>
+                </Card>
+                <Card title="Output GST" subtitle="Total tax liability">
+                    <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--accent-gold)' }}>{fmt(s.totalGSTLiability)}</div>
+                </Card>
+                <Card title="Input Credit" subtitle="Available ITC">
+                    <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#10b981' }}>{fmt(s.inputTaxCredit)}</div>
+                </Card>
+                <Card title="Net Payable" subtitle="Balance to pay">
+                    <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#ef4444' }}>{fmt(s.netGSTPayable)}</div>
+                </Card>
             </div>
 
-            {/* GST Slabs Reference */}
-            <div style={{ padding: "1rem 1.5rem", background: "rgba(245,158,11,0.08)", borderRadius: "12px", border: "1px solid rgba(245,158,11,0.2)", marginBottom: "2rem", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                <strong style={{ color: "var(--text-primary)" }}>Your Hotel GST Slab:</strong> Tariff &gt; ₹7,500/night → <strong style={{ color: "#10b981" }}>18% GST (CGST 9% + SGST 9%)</strong> |
-                Restaurant (5-star with ITC) → <strong style={{ color: "#10b981" }}>18% GST</strong> | Events → <strong style={{ color: "#10b981" }}>18% GST</strong>
+            <div style={{ padding: "1rem 1.5rem", background: "rgba(245,158,11,0.05)", borderRadius: "12px", border: "1px solid rgba(245,158,11,0.2)", marginBottom: "2rem", display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '1.5rem' }}>ℹ️</span>
+                <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                    <strong>Regulatory Notice:</strong> Room tariffs exceeding ₹7,500/night attract 18% GST (9% CGST + 9% SGST). Restaurant services with ITC are also calculated at 18%.
+                </p>
             </div>
 
-            {/* Room GST Table */}
-            <h2 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "1rem" }}>Room Revenue & GST</h2>
-            <div style={{ overflowX: "auto", marginBottom: "2rem" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
-                    <thead>
-                        <tr style={{ background: "var(--bg-secondary)" }}>
-                            {["Month", "Tariff/Night", "Nights Occupied", "Taxable Value", "GST @18%", "CGST @9%", "SGST @9%", "Guest Type"].map(h => (
-                                <th key={h} style={{ padding: "0.8rem", textAlign: "left", color: "var(--text-secondary)", fontWeight: 600, borderBottom: "1px solid var(--border-color)" }}>{h}</th>
-                            ))}
+            <Card title="Detailed Room Revenue" subtitle="Month-wise GST breakdown for accommodations">
+                <Table
+                    headers={["Month", "Avg Tariff", "Occupancy", "Taxable Value", "GST (18%)", "CGST / SGST", "Type"]}
+                    loading={loading}
+                >
+                    {data.roomGST.map((r: any, i: number) => (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '1rem 1.5rem', fontWeight: 600 }}>{r.month}</td>
+                            <td style={{ padding: '1rem 1.5rem' }}>{fmt(r.tariff)}</td>
+                            <td style={{ padding: '1rem 1.5rem' }}>{r.nights} nights</td>
+                            <td style={{ padding: '1rem 1.5rem', fontWeight: 600 }}>{fmt(r.baseRevenue)}</td>
+                            <td style={{ padding: '1rem 1.5rem', color: 'var(--accent-gold)', fontWeight: 700 }}>{fmt(r.gstAmount)}</td>
+                            <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>2x {fmt(r.cgst)}</td>
+                            <td style={{ padding: '1rem 1.5rem' }}>
+                                <Badge variant={r.guestType === "B2B" ? "info" : "success"}>{r.guestType}</Badge>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {data.roomGST.map((r: any, i: number) => (
-                            <tr key={i} style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                <td style={{ padding: "0.8rem", fontWeight: 600 }}>{r.month}</td>
-                                <td style={{ padding: "0.8rem" }}>₹{r.tariff.toLocaleString("en-IN")}</td>
-                                <td style={{ padding: "0.8rem" }}>{r.nights}</td>
-                                <td style={{ padding: "0.8rem", fontWeight: 600 }}>{fmt(r.baseRevenue)}</td>
-                                <td style={{ padding: "0.8rem", color: "#f59e0b", fontWeight: 600 }}>{fmt(r.gstAmount)}</td>
-                                <td style={{ padding: "0.8rem" }}>{fmt(r.cgst)}</td>
-                                <td style={{ padding: "0.8rem" }}>{fmt(r.sgst)}</td>
-                                <td style={{ padding: "0.8rem" }}>
-                                    <span style={{ padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "0.78rem", background: r.guestType === "B2B" ? "rgba(59,130,246,0.1)" : "rgba(16,185,129,0.1)", color: r.guestType === "B2B" ? "#3b82f6" : "#10b981", fontWeight: 600 }}>{r.guestType}</span>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                    ))}
+                </Table>
+            </Card>
 
-            {/* Restaurant + Events */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
-                <div style={{ padding: "1.5rem", background: "var(--bg-secondary)", borderRadius: "12px" }}>
-                    <h3 style={{ margin: "0 0 1rem", fontSize: "1rem" }}>Restaurant GST (@18%)</h3>
-                    {data.restaurantGST.map((r: any, i: number) => (
-                        <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "0.6rem 0", borderBottom: "1px solid var(--border-color)" }}>
-                            <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{r.month}</span>
-                            <span>Base: {fmt(r.revenue)} → GST: <strong style={{ color: "#f59e0b" }}>{fmt(r.gstAmount)}</strong></span>
-                        </div>
-                    ))}
-                </div>
-                <div style={{ padding: "1.5rem", background: "var(--bg-secondary)", borderRadius: "12px" }}>
-                    <h3 style={{ margin: "0 0 1rem", fontSize: "1rem" }}>Event / Banquet GST (@18%)</h3>
-                    {data.eventGST.map((e: any, i: number) => (
-                        <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "0.6rem 0", borderBottom: "1px solid var(--border-color)" }}>
-                            <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{e.month}</span>
-                            <span>Base: {fmt(e.revenue)} → GST: <strong style={{ color: "#f59e0b" }}>{fmt(e.gstAmount)}</strong></span>
-                        </div>
-                    ))}
-                </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '1.5rem', marginTop: '2.5rem' }}>
+                <Card title="Restaurant GST" subtitle="F&B revenue tax breakdown (18%)">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {data.restaurantGST.map((r: any, i: number) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.8rem 0', borderBottom: i < data.restaurantGST.length - 1 ? '1px solid var(--border-color)' : 'none' }}>
+                                <span style={{ fontWeight: 500 }}>{r.month}</span>
+                                <div style={{ textAlign: 'right' }}>
+                                    <div style={{ fontSize: '0.9rem' }}>Base: {fmt(r.revenue)}</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--accent-gold)', fontWeight: 600 }}>GST: {fmt(r.gstAmount)}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+                <Card title="Events & Banquets" subtitle="MICE revenue tax breakdown (18%)">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {data.eventGST.map((e: any, i: number) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.8rem 0', borderBottom: i < data.eventGST.length - 1 ? '1px solid var(--border-color)' : 'none' }}>
+                                <span style={{ fontWeight: 500 }}>{e.month}</span>
+                                <div style={{ textAlign: 'right' }}>
+                                    <div style={{ fontSize: '0.9rem' }}>Base: {fmt(e.revenue)}</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--accent-gold)', fontWeight: 600 }}>GST: {fmt(e.gstAmount)}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
             </div>
         </div>
     );
