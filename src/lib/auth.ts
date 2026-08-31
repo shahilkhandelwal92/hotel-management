@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { JWTPayload, SignJWT, jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 
 const jwtSecret = process.env.JWT_SECRET;
 
@@ -112,10 +112,33 @@ export async function decrypt(input: string): Promise<Session | null> {
 }
 
 export async function getSession(): Promise<Session | null> {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session')?.value;
-    if (!sessionCookie) return null;
-    return await decrypt(sessionCookie);
+    // 1. Check HTTP-only session cookie (Web flow)
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('session')?.value;
+        if (sessionCookie) {
+            const session = await decrypt(sessionCookie);
+            if (session) return session;
+        }
+    } catch {
+        // cookies() unavailable outside request context
+    }
+
+    // 2. Check Authorization: Bearer <token> header (Mobile/API flow)
+    try {
+        const headerStore = await headers();
+        const authHeader = headerStore.get('authorization') || headerStore.get('Authorization');
+        if (authHeader?.startsWith('Bearer ')) {
+            const token = authHeader.substring(7).trim();
+            if (token) {
+                return await decrypt(token);
+            }
+        }
+    } catch {
+        // headers() unavailable outside request context
+    }
+
+    return null;
 }
 
 export function hasAnyRole(session: Session | null, allowedRoles: string[]): boolean {

@@ -61,7 +61,7 @@ export async function POST(request: Request) {
             sameSite: 'lax',
         });
 
-        return NextResponse.json({ success: true, user: newSessionData });
+        return NextResponse.json({ success: true, user: newSessionData, token: sessionToken });
 
     } catch (err) {
         console.error('POST /api/auth/switch-hotel error:', err);

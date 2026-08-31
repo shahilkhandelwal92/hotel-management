@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
             sameSite: 'lax',
         });
 
-        return NextResponse.json({ success: true, user: sessionData });
+        return NextResponse.json({ success: true, user: sessionData, token: sessionToken });
     } catch (error) {
         logger.error('Login error', { error: (error as Error).message });
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
