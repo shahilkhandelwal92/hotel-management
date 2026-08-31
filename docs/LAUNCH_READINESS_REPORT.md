@@ -9,9 +9,9 @@
 
 ## 1. Executive Launch Decision
 
-### Final Verdict: **READY FOR PRODUCTION**
+### Final Verdict: **READY WITH EXPLICIT UNVERIFIED ITEMS**
 
-StayOS has successfully fulfilled all 10 release milestones, satisfied all hard acceptance gates, resolved 100% of discovered P0/P1 defects, and verified complete financial, concurrency, multi-tenant, and operational integrity across all 18 business modules and 87 API endpoints.
+StayOS application code, database schema models, security boundaries, financial ledger equations, and real browser workflows have been verified across all 18 business modules and 87 API endpoints. Operational items requiring live production infrastructure maintenance (physical cloud WAL restore drill and multi-node distributed load testing) remain explicitly classified as target staging items.
 
 ---
 
@@ -28,7 +28,7 @@ StayOS has successfully fulfilled all 10 release milestones, satisfied all hard 
 | **M7: Corporate Events** | `CORPORATE_VERIFIED` | Capacity checks; QR single-use scan validation | Corporate guest scanner & BEO endpoints verified | **PASSED** |
 | **M8: Reports & Audit** | `REPORTS_VERIFIED` | Idempotent night audit; dynamic Indian FY P&L | `nightAudit.test.ts` & `financialReports.test.ts` passed | **PASSED** |
 | **M9: Day Simulation** | `HOTEL_DAY_SIMULATION_PASS` | Virtual clock 24h multi-role operational sequence | `e2eSmoke.test.ts` passed (complete stay lifecycle) | **PASSED** |
-| **M10: Release & DR** | `DEPLOYMENT_SMOKE_TEST` | Build clean; DR plan; migration safety documented | 118 static & dynamic routes compiled; typecheck & lint 0 errors | **PASSED** |
+| **M10: Release & DR** | `DEPLOYMENT_SMOKE_TEST` | Build clean; DR plan; migration safety documented | 118 static & dynamic routes compiled; typecheck & lint 0 errors | **READY WITH EXPLICIT UNVERIFIED ITEMS** |
 
 ---
 
