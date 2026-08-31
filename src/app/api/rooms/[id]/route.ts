@@ -17,9 +17,10 @@ export async function PUT(req: Request, { params }: { params: Params }) {
             data: {
                 number: body.number,
                 type: body.type,
-                price: parseFloat(body.price),
-                includesBreakfast: body.includesBreakfast,
-                includesDinner: body.includesDinner,
+                price: body.price !== undefined ? parseFloat(body.price) : undefined,
+                status: body.status,
+                floor: body.floor !== undefined ? Number(body.floor) : undefined,
+                amenities: typeof body.amenities === "string" ? body.amenities : undefined,
             }
         });
         return NextResponse.json({ success: true, room });

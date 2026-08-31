@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { guestId, requestType, amount } = body;
+        const { guestId, requestType, amount, details } = body;
 
         if (!guestId || !requestType) {
             return NextResponse.json({ error: 'guestId and requestType are required' }, { status: 400 });
@@ -84,7 +84,8 @@ export async function POST(request: NextRequest) {
         const guestRequest = await prisma.guestRequest.create({
             data: {
                 guestId,
-                requestType,
+                type: requestType || "Custom",
+                details: details || requestType || "Guest Request",
                 amount: numericAmount,
                 status: 'Pending'
             }

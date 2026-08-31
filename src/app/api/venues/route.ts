@@ -41,19 +41,18 @@ export async function POST(request: Request) {
         if (type === 'booking') {
             const booking = await prisma.partyBooking.create({
                 data: {
-                    guestName: data.guestName,
-                    contactMobile: data.contactMobile,
-                    eventType: data.eventType,
+                    clientName: data.clientName || data.guestName || "Client",
+                    clientPhone: data.clientPhone || data.contactMobile || "N/A",
+                    clientEmail: data.clientEmail || null,
+                    eventType: data.eventType || "Party",
                     venueId: data.venueId,
-                    startDate: new Date(data.startDate),
-                    endDate: new Date(data.endDate),
-                    guestCount: parseInt(data.guestCount),
-                    needsDecoration: !!data.needsDecoration,
-                    needsCatering: !!data.needsCatering,
-                    needsRooms: !!data.needsRooms,
-                    roomsRequested: parseInt(data.roomsRequested || '0'),
-                    estimatedCost: parseFloat(data.estimatedCost),
-                    status: 'Pending'
+                    eventDate: new Date(data.startDate || data.eventDate || Date.now()),
+                    guestsCount: parseInt(data.guestsCount || data.guestCount || '10'),
+                    decorOpted: !!(data.decorOpted || data.needsDecoration),
+                    cateringOpted: !(data.cateringOpted === false || data.needsCatering === false),
+                    specialNotes: data.specialNotes || null,
+                    estimatedCost: parseFloat(data.estimatedCost || '0'),
+                    status: 'Confirmed'
                 }
             });
             return NextResponse.json({ booking }, { status: 201 });
@@ -61,8 +60,8 @@ export async function POST(request: Request) {
             const venue = await prisma.eventVenue.create({
                 data: {
                     name: data.name,
-                    maxCapacity: parseInt(data.maxCapacity),
-                    basePricePerDay: parseFloat(data.basePricePerDay),
+                    capacity: parseInt(data.capacity || data.maxCapacity || '50'),
+                    basePricePerDay: parseFloat(data.basePricePerDay || '0'),
                     decorationPrice: parseFloat(data.decorationPrice || '0'),
                     foodPerPerson: parseFloat(data.foodPerPerson || '0'),
                     hotelId

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 
 export async function POST(request: Request) {
@@ -8,19 +8,20 @@ export async function POST(request: Request) {
         if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         const body = await request.json();
-        const { name, mobile, email, eventId } = body;
+        const { name, mobile, phone, email, eventId, company, designation } = body;
 
-        if (!name || !mobile || !eventId) {
-            return NextResponse.json({ error: 'Name, mobile, and eventId are required' }, { status: 400 });
+        if (!name || (!mobile && !phone) || !eventId) {
+            return NextResponse.json({ error: 'Name, phone/mobile, and eventId are required' }, { status: 400 });
         }
 
-        const guest = await prisma.guest.create({
+        const guest = await prisma.corporateGuest.create({
             data: {
                 name,
-                mobile,
-                email,
+                phone: phone || mobile,
+                email: email || null,
                 eventId,
-                status: 'Pending'
+                company: company || null,
+                designation: designation || null,
             }
         });
 

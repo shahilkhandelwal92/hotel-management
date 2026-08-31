@@ -30,7 +30,8 @@ export async function POST(request: NextRequest) {
     const guestRequest = await prisma.guestRequest.create({
         data: {
             reservationId: stay.id,
-            requestType: detail,
+            type: requestType,
+            details: detail,
             status: "Pending",
             amount: 0,
         },

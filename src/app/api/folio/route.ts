@@ -247,7 +247,7 @@ export async function PUT(req: NextRequest) {
     if (!["Open", "Closed"].includes(status)) {
         return NextResponse.json({ error: "Invalid folio status" }, { status: 400 });
     }
-    if (status === "Closed" && Math.abs(source.balance) >= 0.01) {
+    if (status === "Closed" && Math.abs(Number(source.balance)) >= 0.01) {
         return NextResponse.json({ error: "A folio with an outstanding balance cannot be closed" }, { status: 422 });
     }
 

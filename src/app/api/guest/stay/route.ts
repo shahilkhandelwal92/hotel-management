@@ -38,7 +38,7 @@ export async function GET() {
         }),
     ]);
 
-    const totalBalance = folios.reduce((sum, folio) => sum + folio.balance, 0);
+    const totalBalance = folios.reduce((sum, folio) => sum + Number(folio.balance), 0);
 
     return NextResponse.json({
         stay: {
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
                         reservationId: stay.id,
                         folioType: "Room",
                         balance: stay.balanceDue,
-                        transactions: stay.balanceDue > 0
+                        transactions: Number(stay.balanceDue) > 0
                             ? {
                                 create: {
                                     type: "Opening",
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
             where: { reservationId: stay.id, status: "Open" },
             select: { id: true, balance: true },
         });
-        const outstanding = openFolios.reduce((sum, folio) => sum + folio.balance, 0);
+        const outstanding = openFolios.reduce((sum, folio) => sum + Number(folio.balance), 0);
         if (Math.abs(outstanding) >= 0.01) {
             return NextResponse.json({
                 error: "Please settle your outstanding balance before checkout",

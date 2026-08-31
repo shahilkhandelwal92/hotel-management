@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "That slot was just booked. Please choose another." }, { status: 409 });
     }
 
-    const amount = amenity.pricingType === "FREE" ? 0 : amenity.price;
+    const amount = amenity.pricingType === "FREE" ? 0 : Number(amenity.price);
     const booking = await prisma.$transaction(async (tx) => {
         const created = await tx.amenityBooking.create({
             data: {

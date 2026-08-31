@@ -35,12 +35,14 @@ export async function POST(request: NextRequest) {
 
     const pricedItems = items.map((item) => {
         const menuItem = menuItems.find((candidate) => candidate.id === item.menuItemId)!;
+        const unitPrice = Number(menuItem.price);
+        const quantity = Number(item.quantity);
         return {
             menuItemId: menuItem.id,
             name: menuItem.name,
-            quantity: Number(item.quantity),
-            unitPrice: menuItem.price,
-            lineTotal: menuItem.price * Number(item.quantity),
+            quantity,
+            unitPrice,
+            lineTotal: unitPrice * quantity,
             notes: item.notes?.trim() || null,
         };
     });

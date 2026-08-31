@@ -88,18 +88,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Params }) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        // First delete guest food orders and requests, then guests, then event
-        await prisma.$transaction(async (tx) => {
-            const guests = await tx.guest.findMany({ where: { eventId: id }, select: { id: true } });
-            const guestIds = guests.map(g => g.id);
-            if (guestIds.length > 0) {
-                await tx.orderItem.deleteMany({ where: { order: { guestId: { in: guestIds } } } });
-                await tx.foodOrder.deleteMany({ where: { guestId: { in: guestIds } } });
-                await tx.guestRequest.deleteMany({ where: { guestId: { in: guestIds } } });
-                await tx.guest.deleteMany({ where: { eventId: id } });
-            }
-            await tx.corporateEvent.delete({ where: { id } });
-        });
+        await prisma.corporateEvent.delete({ where: { id } });
         return NextResponse.json({ success: true });
     } catch (err) {
         console.error('DELETE /api/events/[id]:', err);

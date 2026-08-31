@@ -32,7 +32,8 @@ export async function GET(request: NextRequest) {
             const used = approved
                 .filter((leave) => leave.leaveTypeId === leaveType.id)
                 .reduce((sum, leave) => sum + Math.floor((leave.endDate.getTime() - leave.startDate.getTime()) / 86_400_000) + 1, 0);
-            return { ...leaveType, used, available: Math.max(0, leaveType.defaultDays - used) };
+            const maxAllowed = leaveType.defaultDays ?? leaveType.maxDays ?? 12;
+            return { ...leaveType, used, available: Math.max(0, maxAllowed - used) };
         });
         return NextResponse.json({ leaves, balances });
     }

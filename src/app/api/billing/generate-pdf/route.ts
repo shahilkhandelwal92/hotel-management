@@ -20,7 +20,7 @@ export async function POST(req: Request) {
         }
 
         // 1. Fetch Guest, Event, Hotel, and Tax Config
-        const guest: any = await (prisma.guest as any).findUnique({
+        const guest: any = await (prisma as any).corporateGuest.findUnique({
             where: { id: guestId },
             include: {
                 event: {

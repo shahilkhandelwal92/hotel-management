@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 
-
-
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
     try {
         const session = await getSession();
         if (!session || (!session.roles.includes("SUPER_ADMIN") && !session.roles.includes("OWNER"))) {
@@ -13,20 +11,20 @@ export async function GET(request: Request) {
 
         const financials = await prisma.financialReport.findMany({
             include: { hotel: true },
-            orderBy: { financialYear: "desc" }
+            orderBy: { createdAt: "desc" }
         });
 
-        // Calculate aggregates if needed, or group by FY
+        // Calculate aggregates grouped by month
         const aggregated = financials.reduce((acc, curr) => {
-            const fy = curr.financialYear;
-            if (!acc[fy]) {
-                acc[fy] = { financialYear: fy, totalRevenue: 0, totalExpenses: 0, hotelsCount: 0 };
+            const period = curr.month;
+            if (!acc[period]) {
+                acc[period] = { period, totalRevenue: 0, totalExpenses: 0, hotelsCount: 0 };
             }
-            acc[fy].totalRevenue += curr.totalRevenue;
-            acc[fy].totalExpenses += curr.totalExpenses;
-            acc[fy].hotelsCount += 1;
+            acc[period].totalRevenue += Number(curr.totalRevenue);
+            acc[period].totalExpenses += Number(curr.totalExpenses);
+            acc[period].hotelsCount += 1;
             return acc;
-        }, {} as Record<string, any>);
+        }, {} as Record<string, { period: string; totalRevenue: number; totalExpenses: number; hotelsCount: number }>);
 
         return NextResponse.json({
             raw: financials,

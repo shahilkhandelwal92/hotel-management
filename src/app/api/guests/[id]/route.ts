@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 
 type Params = Promise<{ id: string }>;
@@ -11,15 +11,17 @@ export async function PUT(request: Request, { params }: { params: Params }) {
 
         const { id } = await params;
         const body = await request.json();
-        const { name, mobile, email, status } = body;
+        const { name, mobile, phone, email, isSeated, company, designation } = body;
 
-        const guest = await prisma.guest.update({
+        const guest = await prisma.corporateGuest.update({
             where: { id },
             data: {
                 ...(name && { name }),
-                ...(mobile && { mobile }),
+                ...((phone || mobile) && { phone: phone || mobile }),
                 ...(email !== undefined && { email }),
-                ...(status && { status }),
+                ...(isSeated !== undefined && { isSeated }),
+                ...(company !== undefined && { company }),
+                ...(designation !== undefined && { designation }),
             }
         });
 
@@ -37,12 +39,8 @@ export async function DELETE(_req: Request, { params }: { params: Params }) {
 
         const { id } = await params;
 
-        // Delete guest related data first
-        await prisma.orderItem.deleteMany({ where: { order: { guestId: id } } });
-        await prisma.foodOrder.deleteMany({ where: { guestId: id } });
         await prisma.guestRequest.deleteMany({ where: { guestId: id } });
-
-        await prisma.guest.delete({ where: { id } });
+        await prisma.corporateGuest.delete({ where: { id } });
 
         return NextResponse.json({ success: true });
     } catch (err) {

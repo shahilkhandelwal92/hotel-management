@@ -53,13 +53,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Params 
     const { id } = await params;
     const existing = await prisma.menuItem.findUnique({
         where: { id },
-        include: { _count: { select: { orderItems: true, posOrderItems: true } } },
+        include: { _count: { select: { posOrderItems: true } } },
     });
     if (!existing) return NextResponse.json({ error: "Menu item not found" }, { status: 404 });
     if (!resolveRequestedHotel(context.access, existing.hotelId)) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    if (existing._count.orderItems > 0 || existing._count.posOrderItems > 0) {
+    if (existing._count.posOrderItems > 0) {
         return NextResponse.json({ error: "This item has order history and cannot be deleted. Edit it instead." }, { status: 422 });
     }
 

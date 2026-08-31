@@ -31,15 +31,16 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { number, type, price, includesBreakfast, includesDinner } = body;
+        const { number, type, price, floor, amenities, categoryId } = body;
 
         const room = await prisma.room.create({
             data: {
                 number,
                 type,
                 price: parseFloat(String(price)),
-                includesBreakfast: !!includesBreakfast,
-                includesDinner: !!includesDinner,
+                floor: floor ? Number(floor) : 1,
+                amenities: typeof amenities === "string" ? amenities : undefined,
+                categoryId: categoryId || undefined,
                 hotelId
             }
         });

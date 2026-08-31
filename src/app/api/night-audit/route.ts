@@ -86,12 +86,13 @@ export async function POST(req: NextRequest) {
 
     for (const inv of invoices) {
         for (const item of inv.items) {
+            const val = Number(item.lineTotal);
             switch (item.itemType) {
-                case "Room": roomRevenue += item.lineTotal; break;
-                case "Food": fbRevenue += item.lineTotal; break;
-                case "Amenity": amenityRevenue += item.lineTotal; break;
-                case "Event": eventRevenue += item.lineTotal; break;
-                default: otherRevenue += item.lineTotal; break;
+                case "Room": roomRevenue += val; break;
+                case "Food": fbRevenue += val; break;
+                case "Amenity": amenityRevenue += val; break;
+                case "Event": eventRevenue += val; break;
+                default: otherRevenue += val; break;
             }
         }
     }

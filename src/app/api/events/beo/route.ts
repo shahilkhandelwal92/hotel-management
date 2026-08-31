@@ -7,11 +7,9 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 
-
-
 export async function GET(req: NextRequest) {
     const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
     const bookingId = searchParams.get("bookingId");
@@ -25,25 +23,24 @@ export async function GET(req: NextRequest) {
     if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
     const hotel = booking.venue.hotel;
-    const nights = Math.max(1, Math.ceil(
-        (new Date(booking.endDate).getTime() - new Date(booking.startDate).getTime()) / 86400000
-    ));
+    const nights = 1;
 
     // ── Cost breakdown ────────────────────────────────────────────
-    const venueCost = booking.venue.basePricePerDay * nights;
-    const decorationCost = booking.needsDecoration ? booking.venue.decorationPrice : 0;
-    const cateringCost = booking.needsCatering ? booking.venue.foodPerPerson * booking.guestCount : 0;
+    const venueCost = Number(booking.venue.basePricePerDay) * nights;
+    const decorationCost = booking.decorOpted ? Number(booking.venue.decorationPrice) : 0;
+    const cateringCost = booking.cateringOpted ? Number(booking.venue.foodPerPerson) * booking.guestsCount : 0;
     const subtotal = venueCost + decorationCost + cateringCost;
 
     // GST on banquet (12% for venue + catering)
     const gstPct = 0.12;
-    const gstAmount = subtotal * gstPct;
-    const grandTotal = subtotal + gstAmount;
+    const gstAmount = Math.round(subtotal * gstPct * 100) / 100;
+    const grandTotal = Math.round((subtotal + gstAmount) * 100) / 100;
+    const estimatedCostNum = Number(booking.estimatedCost);
 
     const beo = {
         beoNumber: `BEO-${bookingId.slice(0, 8).toUpperCase()}`,
         generatedAt: new Date().toISOString(),
-        generatedBy: session.user.id,
+        generatedBy: session.id,
 
         // ── Hotel Info ──────────────────────────────────────────
         hotel: {
@@ -56,29 +53,26 @@ export async function GET(req: NextRequest) {
         // ── Event Details ───────────────────────────────────────
         event: {
             type: booking.eventType,
-            clientName: booking.guestName,
-            clientContact: booking.contactMobile,
-            clientState: booking.state,
-            startDate: booking.startDate,
-            endDate: booking.endDate,
+            clientName: booking.clientName,
+            clientContact: booking.clientPhone,
+            eventDate: booking.eventDate,
             numberOfNights: nights,
-            expectedGuests: booking.guestCount,
+            expectedGuests: booking.guestsCount,
             status: booking.status,
         },
 
         // ── Venue ───────────────────────────────────────────────
         venue: {
             name: booking.venue.name,
-            maxCapacity: booking.venue.maxCapacity,
-            setupRequired: booking.needsDecoration,
+            capacity: booking.venue.capacity,
+            setupRequired: booking.decorOpted,
         },
 
         // ── Services Booked ─────────────────────────────────────
         services: [
-            { service: "Venue Rental", unit: `${nights} day(s)`, rate: booking.venue.basePricePerDay, amount: venueCost, included: true },
-            { service: "Decoration / Setup", unit: "Flat", rate: booking.venue.decorationPrice, amount: decorationCost, included: booking.needsDecoration },
-            { service: "Catering", unit: `${booking.guestCount} pax @ ₹${booking.venue.foodPerPerson}`, rate: booking.venue.foodPerPerson, amount: cateringCost, included: booking.needsCatering },
-            { service: "Room Booking", unit: `${booking.roomsRequested} rooms`, rate: 0, amount: 0, included: booking.needsRooms, note: "Linked to PMS reservations" },
+            { service: "Venue Rental", unit: `${nights} day(s)`, rate: Number(booking.venue.basePricePerDay), amount: venueCost, included: true },
+            { service: "Decoration / Setup", unit: "Flat", rate: Number(booking.venue.decorationPrice), amount: decorationCost, included: booking.decorOpted },
+            { service: "Catering", unit: `${booking.guestsCount} pax @ ₹${Number(booking.venue.foodPerPerson)}`, rate: Number(booking.venue.foodPerPerson), amount: cateringCost, included: booking.cateringOpted },
         ].filter(s => s.included),
 
         // ── Financial Summary ───────────────────────────────────
@@ -87,17 +81,16 @@ export async function GET(req: NextRequest) {
             gstPct: `${gstPct * 100}%`,
             gstAmount,
             grandTotal,
-            estimatedProvided: booking.estimatedCost,
-            variance: grandTotal - booking.estimatedCost,
+            estimatedProvided: estimatedCostNum,
+            variance: grandTotal - estimatedCostNum,
         },
 
         // ── Special Notes ───────────────────────────────────────
         specialInstructions: [
             `Event Type: ${booking.eventType}`,
-            booking.needsRooms ? `Rooms Requested: ${booking.roomsRequested} (coordinate with Front Desk)` : null,
-            booking.needsDecoration ? "Decoration team must setup by 08:00 on event day" : null,
-            booking.needsCatering ? `Catering for ${booking.guestCount} guests — confirm menu 48h prior` : null,
-            `Client state for GST: ${booking.state ?? "Not specified"}`,
+            booking.decorOpted ? "Decoration team must setup by 08:00 on event day" : null,
+            booking.cateringOpted ? `Catering for ${booking.guestsCount} guests — confirm menu 48h prior` : null,
+            booking.specialNotes ? `Notes: ${booking.specialNotes}` : null,
         ].filter(Boolean),
 
         // ── Confirmation Status ─────────────────────────────────
@@ -111,47 +104,44 @@ export async function GET(req: NextRequest) {
 // POST – create/update party booking
 export async function POST(req: NextRequest) {
     const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
     const {
-        venueId, guestName, contactMobile, state, country = "India", eventType,
-        startDate, endDate, guestCount, needsDecoration, needsCatering, needsRooms, roomsRequested = 0,
+        venueId, clientName, guestName, clientPhone, contactMobile, clientEmail, eventType,
+        startDate, eventDate, guestsCount, guestCount, decorOpted, needsDecoration,
+        cateringOpted, needsCatering, specialNotes
     } = body;
 
     const venue = await prisma.eventVenue.findUnique({ where: { id: venueId } });
     if (!venue) return NextResponse.json({ error: "Venue not found" }, { status: 404 });
 
-    const nights = Math.max(1, Math.ceil(
-        (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000
-    ));
+    const count = Number(guestsCount || guestCount || 10);
+    const hasDecor = Boolean(decorOpted || needsDecoration);
+    const hasCatering = cateringOpted !== false && needsCatering !== false;
+
     const estimatedCost =
-        venue.basePricePerDay * nights +
-        (needsDecoration ? venue.decorationPrice : 0) +
-        (needsCatering ? venue.foodPerPerson * guestCount : 0);
+        Number(venue.basePricePerDay) +
+        (hasDecor ? Number(venue.decorationPrice) : 0) +
+        (hasCatering ? Number(venue.foodPerPerson) * count : 0);
 
     const booking = await prisma.partyBooking.create({
         data: {
-            venueId, guestName, contactMobile, state, country, eventType,
-            startDate: new Date(startDate), endDate: new Date(endDate),
-            guestCount, needsDecoration, needsCatering, needsRooms, roomsRequested,
-            estimatedCost, status: "Pending",
+            venueId,
+            clientName: clientName || guestName || "Client",
+            clientPhone: clientPhone || contactMobile || "N/A",
+            clientEmail: clientEmail || null,
+            eventType: eventType || "Banquet",
+            eventDate: new Date(eventDate || startDate || Date.now()),
+            guestsCount: count,
+            decorOpted: hasDecor,
+            cateringOpted: hasCatering,
+            specialNotes: specialNotes || null,
+            estimatedCost,
+            status: "Pending",
         },
         include: { venue: true },
     });
 
-    return NextResponse.json({ booking }, { status: 201 });
-}
-
-// PUT – confirm/cancel booking
-export async function PUT(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const { id, status } = await req.json();
-    const booking = await prisma.partyBooking.update({
-        where: { id },
-        data: { status },
-    });
-    return NextResponse.json({ booking });
+    return NextResponse.json({ success: true, booking });
 }

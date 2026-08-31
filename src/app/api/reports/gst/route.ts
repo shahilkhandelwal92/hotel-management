@@ -69,11 +69,12 @@ export async function GET(request: NextRequest) {
     };
 
     for (const inv of invoices) {
-        const taxable = inv.subTotal;
-        const invCGST = inv.cgst;
-        const invSGST = inv.sgst;
-        const invIGST = inv.igst;
-        const invTax = inv.totalTax;
+        const taxable = Number(inv.subTotal);
+        const invCGST = Number(inv.cgst);
+        const invSGST = Number(inv.sgst);
+        const invIGST = Number(inv.igst);
+        const invTax = Number(inv.totalTax);
+        const invGrandTotal = Number(inv.grandTotal);
 
         totalTaxableValue += taxable;
         totalCGST += invCGST;
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
                 sgst: Math.round(invSGST),
                 igst: Math.round(invIGST),
                 totalTax: Math.round(invTax),
-                grandTotal: Math.round(inv.grandTotal),
+                grandTotal: Math.round(invGrandTotal),
             });
         } else {
             b2cSupplies.push({
@@ -105,19 +106,19 @@ export async function GET(request: NextRequest) {
                 sgst: Math.round(invSGST),
                 igst: Math.round(invIGST),
                 totalTax: Math.round(invTax),
-                grandTotal: Math.round(inv.grandTotal),
+                grandTotal: Math.round(invGrandTotal),
             });
         }
 
         // Department item breakdown
         for (const item of inv.items) {
             const deptKey = item.itemType in departmentGST ? item.itemType : "Other";
-            const itemTaxable = item.lineTotal - item.taxAmount;
+            const itemTaxable = Number(item.lineTotal) - Number(item.taxAmount);
             departmentGST[deptKey].taxable += itemTaxable;
-            departmentGST[deptKey].cgst += item.cgstAmount ?? 0;
-            departmentGST[deptKey].sgst += item.sgstAmount ?? 0;
-            departmentGST[deptKey].igst += item.igstAmount ?? 0;
-            departmentGST[deptKey].totalTax += item.taxAmount;
+            departmentGST[deptKey].cgst += Number(item.cgstAmount ?? 0);
+            departmentGST[deptKey].sgst += Number(item.sgstAmount ?? 0);
+            departmentGST[deptKey].igst += Number(item.igstAmount ?? 0);
+            departmentGST[deptKey].totalTax += Number(item.taxAmount);
         }
     }
 

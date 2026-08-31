@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
         const monthEntry = monthlyMap.get(monthKey)!;
 
         for (const item of inv.items) {
-            const lineVal = item.lineTotal;
+            const lineVal = Number(item.lineTotal);
             switch (item.itemType.toLowerCase()) {
                 case "room":
                     monthEntry.roomRev += lineVal;
@@ -114,12 +114,14 @@ export async function GET(request: NextRequest) {
         const d = new Date(p.createdAt);
         const monthKey = monthNames[d.getMonth()];
         const monthEntry = monthlyMap.get(monthKey);
+        const grossVal = Number(p.grossSalary);
+        const tdsVal = Number(p.tds);
         if (monthEntry) {
-            monthEntry.expenses += p.grossSalary;
-            monthEntry.tds += p.tds;
+            monthEntry.expenses += grossVal;
+            monthEntry.tds += tdsVal;
         }
-        totalPayrollGross += p.grossSalary;
-        totalTDS += p.tds;
+        totalPayrollGross += grossVal;
+        totalTDS += tdsVal;
     }
 
     const totalRevenue = totalRoomRev + totalRestRev + totalEventRev + totalAmenityRev + totalOtherRev;

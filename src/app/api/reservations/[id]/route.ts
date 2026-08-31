@@ -200,10 +200,10 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
 
             const nextRoomId = data.roomId === undefined ? existing.roomId : (data.roomId || null);
             const deposit = data.advanceDeposit === undefined
-                ? existing.advanceDeposit
+                ? Number(existing.advanceDeposit)
                 : Number(data.advanceDeposit);
 
-            if (!Number.isFinite(deposit) || deposit < 0 || deposit > existing.totalAmount) {
+            if (!Number.isFinite(deposit) || deposit < 0 || deposit > Number(existing.totalAmount)) {
                 return NextResponse.json({ error: "Invalid advance deposit" }, { status: 422 });
             }
 
@@ -252,7 +252,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
                         includesBreakfast: data.includesBreakfast,
                         includesDinner: data.includesDinner,
                         advanceDeposit: deposit,
-                        balanceDue: existing.totalAmount - deposit,
+                        balanceDue: Number(existing.totalAmount) - deposit,
                         roomId: nextRoomId,
                     },
                 });

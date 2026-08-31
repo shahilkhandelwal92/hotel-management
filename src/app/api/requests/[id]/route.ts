@@ -62,7 +62,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Params }
                 data: {
                     folioId: folio.id,
                     type: "Charge",
-                    description: existing.requestType,
+                    description: existing.type || existing.details || "Guest Request",
                     amount: Number(amount),
                     referenceId: existing.id,
                     postedById: session.id,

@@ -195,10 +195,8 @@ async function main() {
             number: '101',
             type: 'Premium King',
             floor: 1,
-            maxOccupancy: 3,
             price: 5200,
             status: 'Occupied',
-            includesBreakfast: true,
         },
         create: {
             id: 'demo-room-101',
@@ -206,10 +204,8 @@ async function main() {
             number: '101',
             type: 'Premium King',
             floor: 1,
-            maxOccupancy: 3,
             price: 5200,
             status: 'Occupied',
-            includesBreakfast: true,
         },
     });
 

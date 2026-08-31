@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
         const existing = await prisma.guestRequest.findFirst({
             where: {
                 reservationId: stay.id,
-                requestType: "Checkout payment at front desk",
+                details: "Checkout payment at front desk",
                 status: "Pending",
             },
         });
@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
             await prisma.guestRequest.create({
                 data: {
                     reservationId: stay.id,
-                    requestType: "Checkout payment at front desk",
+                    type: "Payment",
+                    details: "Checkout payment at front desk",
                     status: "Pending",
                     amount: 0,
                 },
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
         where: { reservationId: stay.id, status: "Open" },
         orderBy: { createdAt: "asc" },
     });
-    const outstanding = Math.round(folios.reduce((sum, folio) => sum + folio.balance, 0) * 100) / 100;
+    const outstanding = Math.round(folios.reduce((sum, folio) => sum + Number(folio.balance), 0) * 100) / 100;
     if (outstanding <= 0) {
         return NextResponse.json({ error: "There is no outstanding balance" }, { status: 422 });
     }
@@ -62,8 +63,9 @@ export async function POST(request: NextRequest) {
     const reference = `PAY-${Date.now().toString(36).toUpperCase()}`;
     await prisma.$transaction(async (tx) => {
         for (const folio of folios) {
-            if (remaining <= 0 || folio.balance <= 0) continue;
-            const applied = Math.min(remaining, folio.balance);
+            const bal = Number(folio.balance);
+            if (remaining <= 0 || bal <= 0) continue;
+            const applied = Math.min(remaining, bal);
             await tx.folioTransaction.create({
                 data: {
                     folioId: folio.id,

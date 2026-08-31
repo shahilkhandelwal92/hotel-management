@@ -54,15 +54,14 @@ export async function GET(_req: Request, { params }: { params: Params }) {
             return NextResponse.json({ mode: 'stay', stay: reservation });
         }
 
-        const guest = await prisma.guest.findFirst({
+        const guest = await prisma.corporateGuest.findFirst({
             where: {
-                OR: [{ id }, { qrToken: id }],
+                OR: [{ id }, { qrCode: id }],
             },
             select: {
                 id: true,
                 name: true,
-                status: true,
-                qrToken: true,
+                qrCode: true,
                 event: {
                     select: {
                         hotel: {
@@ -80,7 +79,8 @@ export async function GET(_req: Request, { params }: { params: Params }) {
                 requests: {
                     select: {
                         id: true,
-                        requestType: true,
+                        type: true,
+                        details: true,
                         amount: true,
                         status: true,
                         createdAt: true,

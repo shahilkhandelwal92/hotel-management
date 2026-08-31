@@ -86,15 +86,15 @@ export async function GET(req: NextRequest) {
     // ── 2. Revenue ───────────────────────────────────────────────
     const monthlyRevenue = invoices
         .filter(i => new Date(i.createdAt) >= monthStart && new Date(i.createdAt) <= monthEnd)
-        .reduce((s, i) => s + i.grandTotal, 0);
+        .reduce((s, i) => s + Number(i.grandTotal), 0);
 
-    const totalRevenue = invoices.reduce((s, i) => s + i.grandTotal, 0);
+    const totalRevenue = invoices.reduce((s, i) => s + Number(i.grandTotal), 0);
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const recentInvoices = invoices.filter((invoice) => new Date(invoice.createdAt) >= thirtyDaysAgo);
-    const total30d = recentInvoices.reduce((sum, invoice) => sum + invoice.grandTotal, 0);
+    const total30d = recentInvoices.reduce((sum, invoice) => sum + Number(invoice.grandTotal), 0);
     const gst30d = recentInvoices.reduce(
-        (sum, invoice) => sum + invoice.cgst + invoice.sgst + invoice.igst,
+        (sum, invoice) => sum + Number(invoice.cgst) + Number(invoice.sgst) + Number(invoice.igst),
         0,
     );
 
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
     const revenueByMonth: Record<string, number> = {};
     invoices.forEach(inv => {
         const key = new Date(inv.createdAt).toISOString().slice(0, 7);
-        revenueByMonth[key] = (revenueByMonth[key] ?? 0) + inv.grandTotal;
+        revenueByMonth[key] = (revenueByMonth[key] ?? 0) + Number(inv.grandTotal);
     });
     const monthlyTrend = Array.from({ length: 6 }, (_, index) => {
         const date = new Date();
@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
     // ── 3. ADR & RevPAR ──────────────────────────────────────────
     const checkedOutRes = currentMonthRes.filter(r => r.status === "CheckedOut");
     const adr = checkedOutRes.length > 0
-        ? checkedOutRes.reduce((s, r) => s + (r.baseAmount ?? 0), 0) / checkedOutRes.length
+        ? checkedOutRes.reduce((s, r) => s + Number(r.baseAmount ?? 0), 0) / checkedOutRes.length
         : 0;
     const revpar = totalRooms > 0 ? monthlyRevenue / totalRooms : 0;
 
@@ -145,22 +145,27 @@ export async function GET(req: NextRequest) {
     const revenueBySource: Record<string, number> = {};
     allReservations.forEach(r => {
         const src = r.bookingType ?? "Unknown";
-        revenueBySource[src] = (revenueBySource[src] ?? 0) + (r.totalAmount ?? 0);
+        revenueBySource[src] = (revenueBySource[src] ?? 0) + Number(r.totalAmount ?? 0);
     });
 
     // ── 8. Department Revenue Split (from invoice items) ─────────
     const deptRevenue: Record<string, number> = {};
     invoices.forEach(inv => {
         inv.items.forEach(item => {
-            deptRevenue[item.itemType] = (deptRevenue[item.itemType] ?? 0) + item.lineTotal;
+            deptRevenue[item.itemType] = (deptRevenue[item.itemType] ?? 0) + Number(item.lineTotal);
         });
     });
 
     // ── 9. GST Summary ───────────────────────────────────────────
     const gstSummary = invoices.reduce(
         (acc, inv) => {
-            acc.cgst += inv.cgst; acc.sgst += inv.sgst; acc.igst += inv.igst;
-            acc.total += inv.cgst + inv.sgst + inv.igst;
+            const c = Number(inv.cgst);
+            const s = Number(inv.sgst);
+            const i = Number(inv.igst);
+            acc.cgst += c;
+            acc.sgst += s;
+            acc.igst += i;
+            acc.total += c + s + i;
             return acc;
         },
         { cgst: 0, sgst: 0, igst: 0, total: 0 }
@@ -169,7 +174,7 @@ export async function GET(req: NextRequest) {
     // ── 10. Payment Mode Distribution ────────────────────────────
     const paymentModeDist: Record<string, number> = {};
     payments.forEach(p => {
-        paymentModeDist[p.paymentMode] = (paymentModeDist[p.paymentMode] ?? 0) + p.amount;
+        paymentModeDist[p.paymentMode] = (paymentModeDist[p.paymentMode] ?? 0) + Number(p.amount);
     });
 
     // ── 11. No-show count ─────────────────────────────────────────
