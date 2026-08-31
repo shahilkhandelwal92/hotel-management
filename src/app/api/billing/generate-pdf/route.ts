@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-const PdfPrinter = require('pdfmake');
+import PdfPrinter from "pdfmake";
 import { getSession } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
@@ -155,11 +155,11 @@ export async function POST(req: Request) {
             }
         };
 
-        const printer = new PdfPrinter(fonts);
+        const printer = new (PdfPrinter as any)(fonts);
         const pdfDoc = printer.createPdfKitDocument(docDefinition);
 
-        let chunks: any[] = [];
-        let promise = new Promise<string>((resolve, reject) => {
+        const chunks: any[] = [];
+        const promise = new Promise<string>((resolve, reject) => {
             pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
             pdfDoc.on('end', () => {
                 const result = Buffer.concat(chunks);

@@ -1,156 +1,143 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getReportAccess } from '@/lib/reportAccess';
-
-// Indian GST Slabs for Hotel Rooms (as per GST Council)
-// 0% for tariff < ₹1,000/night
-// 12% for tariff ₹1,000 - ₹7,500/night
-// 18% for tariff > ₹7,500/night
-
-function getRoomGSTRate(tariff: number): number {
-    if (tariff < 1000) return 0;
-    if (tariff <= 7500) return 12;
-    return 18;
-}
-
-// Mock data representing real hotel bookings for GST calculation
-// In production this would come from the Booking model in Prisma
-function generateGSTData(hotelId?: string) {
-    const hotels = hotelId ? [hotelId] : ['hotel_1', 'hotel_2', 'hotel_3'];
-
-    const roomBookings = [
-        { hotel: 'hotel_1', hotelName: 'The Grand Imperial', month: 'Jan', tariff: 8500, nights: 120, guestType: 'B2C' },
-        { hotel: 'hotel_1', hotelName: 'The Grand Imperial', month: 'Feb', tariff: 8500, nights: 98, guestType: 'B2C' },
-        { hotel: 'hotel_1', hotelName: 'The Grand Imperial', month: 'Mar', tariff: 8500, nights: 145, guestType: 'B2B' },
-        { hotel: 'hotel_2', hotelName: 'Royal Orchid', month: 'Jan', tariff: 4500, nights: 200, guestType: 'B2C' },
-        { hotel: 'hotel_2', hotelName: 'Royal Orchid', month: 'Feb', tariff: 4500, nights: 180, guestType: 'B2C' },
-        { hotel: 'hotel_3', hotelName: 'Sunset Resort & Spa', month: 'Jan', tariff: 6500, nights: 90, guestType: 'B2C' },
-        { hotel: 'hotel_3', hotelName: 'Sunset Resort & Spa', month: 'Feb', tariff: 6500, nights: 110, guestType: 'B2B' },
-    ].filter(b => hotels.includes(b.hotel));
-
-    const restaurantRevenue = [
-        { hotel: 'hotel_1', hotelName: 'The Grand Imperial', month: 'Jan', revenue: 485000, rate: 18 },
-        { hotel: 'hotel_1', hotelName: 'The Grand Imperial', month: 'Feb', revenue: 420000, rate: 18 },
-        { hotel: 'hotel_2', hotelName: 'Royal Orchid', month: 'Jan', revenue: 220000, rate: 5 },
-        { hotel: 'hotel_3', hotelName: 'Sunset Resort & Spa', month: 'Jan', revenue: 180000, rate: 5 },
-    ].filter(r => hotels.includes(r.hotel));
-
-    const eventRevenue = [
-        { hotel: 'hotel_1', hotelName: 'The Grand Imperial', month: 'Jan', revenue: 750000, rate: 18 },
-        { hotel: 'hotel_2', hotelName: 'Royal Orchid', month: 'Feb', revenue: 320000, rate: 18 },
-    ].filter(e => hotels.includes(e.hotel));
-
-    // Calculate Room GST
-    const roomGST = roomBookings.map(b => {
-        const gstRate = getRoomGSTRate(b.tariff);
-        const baseRevenue = b.tariff * b.nights;
-        const gstAmount = (baseRevenue * gstRate) / 100;
-        const cgst = gstAmount / 2;
-        const sgst = gstAmount / 2;
-        return {
-            ...b,
-            gstRate,
-            baseRevenue,
-            gstAmount,
-            cgst,
-            sgst,
-            igst: 0, // IGST for inter-state (simplified)
-        };
-    });
-
-    // Calculate Restaurant GST
-    const restaurantGST = restaurantRevenue.map(r => {
-        const gstAmount = (r.revenue * r.rate) / 100;
-        return {
-            ...r,
-            gstAmount,
-            cgst: gstAmount / 2,
-            sgst: gstAmount / 2,
-            igst: 0,
-        };
-    });
-
-    // Calculate Event GST
-    const eventGST = eventRevenue.map(e => {
-        const gstAmount = (e.revenue * e.rate) / 100;
-        return {
-            ...e,
-            gstAmount,
-            cgst: gstAmount / 2,
-            sgst: gstAmount / 2,
-            igst: 0,
-        };
-    });
-
-    // Totals
-    const totalRoomBase = roomGST.reduce((s, r) => s + r.baseRevenue, 0);
-    const totalRoomGST = roomGST.reduce((s, r) => s + r.gstAmount, 0);
-    const totalRestBase = restaurantRevenue.reduce((s, r) => s + r.revenue, 0);
-    const totalRestGST = restaurantGST.reduce((s, r) => s + r.gstAmount, 0);
-    const totalEventBase = eventRevenue.reduce((s, r) => s + r.revenue, 0);
-    const totalEventGST = eventGST.reduce((s, r) => s + r.gstAmount, 0);
-
-    const totalBase = totalRoomBase + totalRestBase + totalEventBase;
-    const totalGST = totalRoomGST + totalRestGST + totalEventGST;
-
-    // Input Tax Credit
-    const inputTaxCredit = totalGST * 0.18; // approx ITC on purchases
-
-    return {
-        summary: {
-            totalTaxableValue: totalBase,
-            totalGSTLiability: totalGST,
-            cgst: totalGST / 2,
-            sgst: totalGST / 2,
-            igst: 0,
-            inputTaxCredit,
-            netGSTPayable: totalGST - inputTaxCredit,
-        },
-        roomGST,
-        restaurantGST,
-        eventGST,
-        gstr1: {
-            b2bSupplies: [
-                ...roomGST.filter(x => x.guestType === 'B2B').map(x => ({
-                    invoiceType: 'Regular',
-                    taxableValue: x.baseRevenue,
-                    gstRate: x.gstRate,
-                    igst: x.igst,
-                    cgst: x.cgst,
-                    sgst: x.sgst,
-                })),
-                ...restaurantGST.map(x => ({
-                    invoiceType: 'Regular',
-                    taxableValue: x.revenue,
-                    gstRate: x.rate,
-                    igst: x.igst,
-                    cgst: x.cgst,
-                    sgst: x.sgst,
-                })),
-                ...eventGST.map(x => ({
-                    invoiceType: 'Regular',
-                    taxableValue: x.revenue,
-                    gstRate: x.rate,
-                    igst: x.igst,
-                    cgst: x.cgst,
-                    sgst: x.sgst,
-                })),
-            ],
-            b2cSupplies: roomGST.filter(x => x.guestType === 'B2C').map(x => ({
-                taxableValue: x.baseRevenue,
-                gstRate: x.gstRate,
-                igst: x.igst,
-                cgst: x.cgst,
-                sgst: x.sgst,
-            })),
-        },
-    };
-}
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { getReportAccess } from "@/lib/reportAccess";
 
 export async function GET(request: NextRequest) {
     const url = new URL(request.url);
-    const reportAccess = await getReportAccess(request, url.searchParams.get('hotelId'));
-    if (!reportAccess) return NextResponse.json({ error: 'Accounting access required' }, { status: 403 });
+    const reportAccess = await getReportAccess(request, url.searchParams.get("hotelId"));
+    if (!reportAccess) {
+        return NextResponse.json({ error: "Accounting access required" }, { status: 403 });
+    }
+
     const hotelId = reportAccess.hotelId || undefined;
-    const data = generateGSTData(hotelId);
-    return NextResponse.json(data);
+
+    // 1. Fetch live active property/properties
+    const hotels = await prisma.hotel.findMany({
+        where: hotelId ? { id: hotelId } : { status: "Active" },
+        select: { id: true, name: true, gstin: true, state: true },
+    });
+
+    const hotelIds = hotels.map((h) => h.id);
+
+    // 2. Fetch real Invoices with line items
+    const invoices = await prisma.invoice.findMany({
+        where: {
+            hotelId: { in: hotelIds },
+            deletedAt: null,
+            status: { not: "Cancelled" },
+        },
+        include: { items: true },
+        orderBy: { createdAt: "desc" },
+    });
+
+    let totalTaxableValue = 0;
+    let totalCGST = 0;
+    let totalSGST = 0;
+    let totalIGST = 0;
+    let totalGSTLiability = 0;
+
+    const b2bSupplies: Array<{
+        invoiceNumber: string;
+        invoiceDate: string;
+        billedToName: string;
+        billedToGstin: string;
+        taxableValue: number;
+        cgst: number;
+        sgst: number;
+        igst: number;
+        totalTax: number;
+        grandTotal: number;
+    }> = [];
+
+    const b2cSupplies: Array<{
+        invoiceNumber: string;
+        invoiceDate: string;
+        taxableValue: number;
+        cgst: number;
+        sgst: number;
+        igst: number;
+        totalTax: number;
+        grandTotal: number;
+    }> = [];
+
+    const departmentGST: Record<string, { taxable: number; cgst: number; sgst: number; igst: number; totalTax: number }> = {
+        Room: { taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
+        Food: { taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
+        Amenity: { taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
+        Event: { taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
+        Other: { taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
+    };
+
+    for (const inv of invoices) {
+        const taxable = inv.subTotal;
+        const invCGST = inv.cgst;
+        const invSGST = inv.sgst;
+        const invIGST = inv.igst;
+        const invTax = inv.totalTax;
+
+        totalTaxableValue += taxable;
+        totalCGST += invCGST;
+        totalSGST += invSGST;
+        totalIGST += invIGST;
+        totalGSTLiability += invTax;
+
+        const isB2B = inv.invoiceFormat === "B2B" || Boolean(inv.billedToGstin && inv.billedToGstin.trim());
+
+        if (isB2B) {
+            b2bSupplies.push({
+                invoiceNumber: inv.invoiceNumber,
+                invoiceDate: inv.createdAt.toISOString().slice(0, 10),
+                billedToName: inv.billedToName,
+                billedToGstin: inv.billedToGstin || "N/A",
+                taxableValue: Math.round(taxable),
+                cgst: Math.round(invCGST),
+                sgst: Math.round(invSGST),
+                igst: Math.round(invIGST),
+                totalTax: Math.round(invTax),
+                grandTotal: Math.round(inv.grandTotal),
+            });
+        } else {
+            b2cSupplies.push({
+                invoiceNumber: inv.invoiceNumber,
+                invoiceDate: inv.createdAt.toISOString().slice(0, 10),
+                taxableValue: Math.round(taxable),
+                cgst: Math.round(invCGST),
+                sgst: Math.round(invSGST),
+                igst: Math.round(invIGST),
+                totalTax: Math.round(invTax),
+                grandTotal: Math.round(inv.grandTotal),
+            });
+        }
+
+        // Department item breakdown
+        for (const item of inv.items) {
+            const deptKey = item.itemType in departmentGST ? item.itemType : "Other";
+            const itemTaxable = item.lineTotal - item.taxAmount;
+            departmentGST[deptKey].taxable += itemTaxable;
+            departmentGST[deptKey].cgst += item.cgstAmount ?? 0;
+            departmentGST[deptKey].sgst += item.sgstAmount ?? 0;
+            departmentGST[deptKey].igst += item.igstAmount ?? 0;
+            departmentGST[deptKey].totalTax += item.taxAmount;
+        }
+    }
+
+    const inputTaxCredit = 0; // Estimated or configured from purchase invoices
+    const netGSTPayable = Math.max(0, totalGSTLiability - inputTaxCredit);
+
+    return NextResponse.json({
+        summary: {
+            totalTaxableValue: Math.round(totalTaxableValue),
+            totalGSTLiability: Math.round(totalGSTLiability),
+            cgst: Math.round(totalCGST),
+            sgst: Math.round(totalSGST),
+            igst: Math.round(totalIGST),
+            inputTaxCredit: Math.round(inputTaxCredit),
+            netGSTPayable: Math.round(netGSTPayable),
+        },
+        departmentBreakdown: departmentGST,
+        gstr1: {
+            b2bSupplies,
+            b2cSupplies,
+        },
+    });
 }

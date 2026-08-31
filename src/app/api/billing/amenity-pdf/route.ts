@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-const PdfPrinter = require('pdfmake');
+import PdfPrinter from "pdfmake";
 import { getSession } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
         let cgst = 0, sgst = 0, igst = 0;
 
         // Default walk-in to Same State as company for simplicities sake if standard guest params are missing.
-        let isSameState = true;
+        const isSameState = true;
 
         if (taxConfig && taxConfig.isTaxApplicable && booking.amenity.isTaxApplicable && booking.amenity.pricingType !== "FREE") {
             const taxPct = taxConfig.amenityTaxPct || 0;
@@ -126,11 +126,11 @@ export async function POST(req: Request) {
             }
         };
 
-        const printer = new PdfPrinter(fonts);
+        const printer = new (PdfPrinter as any)(fonts);
         const pdfDoc = printer.createPdfKitDocument(docDefinition);
 
-        let chunks: any[] = [];
-        let promise = new Promise<string>((resolve, reject) => {
+        const chunks: any[] = [];
+        const promise = new Promise<string>((resolve, reject) => {
             pdfDoc.on('data', (chunk: any) => chunks.push(chunk));
             pdfDoc.on('end', () => {
                 const result = Buffer.concat(chunks);

@@ -42,7 +42,8 @@ export type AuditAction =
     | "CREDIT_NOTE_ISSUED"
     | "OVERBOOK_ATTEMPT"
     | "DENIED_UNKNOWN_CREDENTIAL"
-    | "DENIED_ENTRY";
+    | "DENIED_ENTRY"
+    | "EXPORT_DATA";
 
 export type AuditModule =
     | "Reservation"
@@ -59,7 +60,8 @@ export type AuditModule =
     | "SaasSubscription"
     | "Auth"
     | "AccessCredential"
-    | "AccessLog";
+    | "AccessLog"
+    | "Export";
 
 export interface LogAuditParams {
     hotelId?: string | null;

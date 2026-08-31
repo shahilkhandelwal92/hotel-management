@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const entityId = searchParams.get("entityId");
     const hotelId = req.headers.get("x-hotel-id") ?? searchParams.get("hotelId");
-    const module = searchParams.get("module");
+    const moduleName = searchParams.get("module");
     const limit = Math.min(parseInt(searchParams.get("limit") ?? "50"), 200);
 
     if (!entityId && !hotelId) {
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     const where: any = {};
     if (entityId) where.entityId = entityId;
     if (hotelId) where.hotelId = hotelId;
-    if (module) where.module = module;
+    if (moduleName) where.module = moduleName;
 
     const logs = await prisma.auditLog.findMany({
         where,

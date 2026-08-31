@@ -5,13 +5,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 
-
-
-function toCSV(rows: Record<string, any>[]): string {
+function toCSV(rows: Record<string, unknown>[]): string {
     if (!rows.length) return "";
     const headers = Object.keys(rows[0]);
-    const escape = (v: any) => {
+    const escape = (v: unknown) => {
         const s = v == null ? "" : String(v).replace(/"/g, '""');
         return /[,"\n]/.test(s) ? `"${s}"` : s;
     };
@@ -32,19 +31,19 @@ export async function GET(req: NextRequest) {
     const injectedHotelId = req.headers.get("x-hotel-id");
     const injectedRole = req.headers.get("x-user-role");
     const isSA = injectedRole === "SUPER_ADMIN" || injectedRole === "OWNER";
-    const isAdmin = isSA || injectedRole === "HOTEL_ADMIN" || injectedRole === "ADMIN";
+    const isAdmin = isSA || injectedRole === "HOTEL_ADMIN" || injectedRole === "ADMIN" || injectedRole === "ACCOUNTING";
 
     // SA can export any hotel via query param; staff locked to their hotel
     const hotelId = isSA
         ? (searchParams.get("hotelId") ?? injectedHotelId)
         : injectedHotelId;
 
-    if (!hotelId) return NextResponse.json({ error: "hotelId required" }, { status: 400 });
+    if (!hotelId) return NextResponse.json({ error: "hotelId required" }, { status: 403 });
 
     // ── Role gates for sensitive exports ─────────────────────────
     if ((type === "gst" || type === "payroll") && !isAdmin) {
         return NextResponse.json(
-            { error: `Access denied: ${type.toUpperCase()} export requires ADMIN or OWNER role. Contact your manager.` },
+            { error: `Access denied: ${type.toUpperCase()} export requires ADMIN or ACCOUNTING role.` },
             { status: 403 }
         );
     }
@@ -53,7 +52,7 @@ export async function GET(req: NextRequest) {
     const to = searchParams.get("to") ? new Date(searchParams.get("to")!) : new Date();
     to.setHours(23, 59, 59, 999);
 
-    let rows: Record<string, any>[] = [];
+    let rows: Record<string, unknown>[] = [];
     let filename = `${type}_export_${new Date().toISOString().slice(0, 10)}`;
 
     // ── RESERVATIONS ─────────────────────────────────────────────
@@ -123,40 +122,32 @@ export async function GET(req: NextRequest) {
             orderBy: { createdAt: "desc" },
         });
         rows = data.map((p) => ({
-            "Employee": (p as any).user?.name ?? "",
-            "Email": (p as any).user?.email ?? "",
-            "Month": (p as any).month ?? new Date(p.createdAt).toISOString().slice(0, 7),
-            "Basic": (p as any).basicSalary?.toFixed(2) ?? "0.00",
-            "HRA": (p as any).hra?.toFixed(2) ?? "0.00",
-            "Allowances": (p as any).allowances?.toFixed(2) ?? "0.00",
-            "Gross": (p as any).grossSalary?.toFixed(2) ?? "0.00",
-            "PF Deduction": (p as any).pfDeduction?.toFixed(2) ?? "0.00",
-            "TDS": (p as any).tdsDeduction?.toFixed(2) ?? "0.00",
-            "Net Pay": (p as any).netSalary?.toFixed(2) ?? "0.00",
-            "Status": (p as any).status ?? "",
+            "Employee": p.user?.name ?? "",
+            "Email": p.user?.email ?? "",
+            "Month": p.month ?? new Date(p.createdAt).toISOString().slice(0, 7),
+            "Basic": p.basicSalary.toFixed(2),
+            "HRA": p.hra.toFixed(2),
+            "Conveyance": p.conveyance.toFixed(2),
+            "Medical": p.medicalAllowance.toFixed(2),
+            "Other Allowances": p.otherAllowances.toFixed(2),
+            "Gross": p.grossSalary.toFixed(2),
+            "PF": p.pf.toFixed(2),
+            "ESI": p.esi.toFixed(2),
+            "PT": p.pt.toFixed(2),
+            "TDS": p.tds.toFixed(2),
+            "Total Deductions": p.totalDeductions.toFixed(2),
+            "Net Pay": p.netSalary.toFixed(2),
+            "Status": p.paymentStatus,
         }));
         filename = `payroll_${from.toISOString().slice(0, 7)}`;
     }
 
     // ── ANALYTICS SUMMARY ────────────────────────────────────────
     else if (type === "analytics") {
-        const [resCount, invoiceTotal, nightAudits] = await Promise.all([
-            prisma.reservation.groupBy({
-                by: ["status"],
-                where: { hotelId, checkIn: { gte: from, lte: to }, deletedAt: null },
-                _count: { status: true },
-                _sum: { totalAmount: true },
-            }),
-            prisma.invoice.aggregate({
-                where: { hotelId, createdAt: { gte: from, lte: to }, deletedAt: null },
-                _sum: { grandTotal: true, cgst: true, sgst: true, igst: true },
-                _count: { id: true },
-            }),
-            prisma.nightAudit.findMany({
-                where: { hotelId, auditDate: { gte: from, lte: to } },
-                orderBy: { auditDate: "asc" },
-            }),
-        ]);
+        const nightAudits = await prisma.nightAudit.findMany({
+            where: { hotelId, auditDate: { gte: from, lte: to } },
+            orderBy: { auditDate: "asc" },
+        });
 
         rows = nightAudits.map((a) => ({
             "Date": new Date(a.auditDate).toLocaleDateString("en-IN"),
@@ -173,6 +164,17 @@ export async function GET(req: NextRequest) {
         }));
         filename = `analytics_${from.toISOString().slice(0, 10)}_to_${to.toISOString().slice(0, 10)}`;
     }
+
+    // ── Audit Log Record on Sensitive Export ──────────────────────
+    await logAudit({
+        hotelId,
+        userId: session.id,
+        module: "Export",
+        action: "EXPORT_DATA",
+        entityType: "Export",
+        details: `Exported ${type.toUpperCase()} data (${rows.length} rows) between ${from.toISOString().slice(0, 10)} and ${to.toISOString().slice(0, 10)}`,
+        req,
+    });
 
     // ── Return CSV ────────────────────────────────────────────────
     const csv = toCSV(rows);

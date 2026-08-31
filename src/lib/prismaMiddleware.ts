@@ -25,8 +25,7 @@ const SOFT_DELETE_OPERATIONS = [
 
 // Apply soft-delete middleware to the SHARED singleton
 // Note: $use is additive — safe to call once at module load
-// @ts-ignore Prisma middleware typing
-prisma.$use(async (params: any, next: any) => {
+(prisma as any).$use(async (params: any, next: any) => {
     // Auto-filter soft-deleted records
     if (
         SOFT_DELETE_MODELS.includes(params.model) &&
