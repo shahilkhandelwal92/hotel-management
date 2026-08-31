@@ -131,7 +131,53 @@ export default function DashboardScreen() {
           </AppCard>
         </PermissionGate>
 
-        {/* 4. Maintenance / Engineering (Preview) */}
+        {/* 4. F&B POS & Kitchen Display */}
+        <PermissionGate permission="POS_ORDER_CREATE">
+          <AppCard
+            style={styles.moduleCard}
+            onPress={() => router.push('/(app)/restaurant')}
+          >
+            <View style={styles.moduleHeader}>
+              <View style={[styles.moduleIconContainer, { backgroundColor: 'rgba(236, 72, 153, 0.15)' }]}>
+                <Text style={styles.moduleIcon}>🍽️</Text>
+              </View>
+              <View style={styles.moduleInfo}>
+                <View style={styles.moduleTitleRow}>
+                  <Text style={styles.moduleTitle}>F&B POS & Kitchen Display</Text>
+                  <StatusBadge label="Ready" variant="success" />
+                </View>
+                <Text style={styles.moduleDescription}>
+                  Table orders, KOT kitchen queue, recipe inventory & direct room folio charging.
+                </Text>
+              </View>
+            </View>
+          </AppCard>
+        </PermissionGate>
+
+        {/* 5. Cashiering & Shift Reconciliation */}
+        <PermissionGate permission="CASHIER_VIEW">
+          <AppCard
+            style={styles.moduleCard}
+            onPress={() => router.push('/(app)/cashier')}
+          >
+            <View style={styles.moduleHeader}>
+              <View style={[styles.moduleIconContainer, { backgroundColor: 'rgba(20, 184, 166, 0.15)' }]}>
+                <Text style={styles.moduleIcon}>💵</Text>
+              </View>
+              <View style={styles.moduleInfo}>
+                <View style={styles.moduleTitleRow}>
+                  <Text style={styles.moduleTitle}>Cashier Shift & Reconciliation</Text>
+                  <StatusBadge label="Ready" variant="success" />
+                </View>
+                <Text style={styles.moduleDescription}>
+                  Shift drawer float, cash drops, payments, blind drawer count & variance audit.
+                </Text>
+              </View>
+            </View>
+          </AppCard>
+        </PermissionGate>
+
+        {/* 6. Maintenance / Engineering (Preview) */}
         <AppCard style={[styles.moduleCard, styles.disabledModule]}>
           <View style={styles.moduleHeader}>
             <View style={[styles.moduleIconContainer, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
@@ -140,46 +186,10 @@ export default function DashboardScreen() {
             <View style={styles.moduleInfo}>
               <View style={styles.moduleTitleRow}>
                 <Text style={styles.moduleTitle}>Engineering & Work Orders</Text>
-                <StatusBadge label="Phase 4" variant="default" />
-              </View>
-              <Text style={styles.moduleDescription}>
-                Corrective tasks, equipment inspection, and Out-of-Order room isolation.
-              </Text>
-            </View>
-          </View>
-        </AppCard>
-
-        {/* 5. F&B POS / Kitchen (Preview) */}
-        <AppCard style={[styles.moduleCard, styles.disabledModule]}>
-          <View style={styles.moduleHeader}>
-            <View style={[styles.moduleIconContainer, { backgroundColor: 'rgba(236, 72, 153, 0.15)' }]}>
-              <Text style={styles.moduleIcon}>🍽️</Text>
-            </View>
-            <View style={styles.moduleInfo}>
-              <View style={styles.moduleTitleRow}>
-                <Text style={styles.moduleTitle}>F&B POS & Kitchen Display</Text>
                 <StatusBadge label="Phase 5" variant="default" />
               </View>
               <Text style={styles.moduleDescription}>
-                Table orders, KOT kitchen queue, and direct room folio charging.
-              </Text>
-            </View>
-          </View>
-        </AppCard>
-
-        {/* 6. Cashiering (Preview) */}
-        <AppCard style={[styles.moduleCard, styles.disabledModule]}>
-          <View style={styles.moduleHeader}>
-            <View style={[styles.moduleIconContainer, { backgroundColor: 'rgba(20, 184, 166, 0.15)' }]}>
-              <Text style={styles.moduleIcon}>💵</Text>
-            </View>
-            <View style={styles.moduleInfo}>
-              <View style={styles.moduleTitleRow}>
-                <Text style={styles.moduleTitle}>Cashier Shift & Reconciliation</Text>
-                <StatusBadge label="Phase 6" variant="default" />
-              </View>
-              <Text style={styles.moduleDescription}>
-                Shift drawer float, cash drops, payments, and blind end-of-shift closing.
+                Corrective tasks, equipment inspection, and Out-of-Order room isolation.
               </Text>
             </View>
           </View>

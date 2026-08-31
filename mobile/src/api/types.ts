@@ -170,6 +170,95 @@ export interface FolioItem {
   windows?: FolioWindowItem[];
 }
 
+export interface CashDrawerTransaction {
+  id: string;
+  shiftId: string;
+  type: 'FOLIO_PAYMENT' | 'CASH_DROP' | 'PAID_OUT' | 'REFUND' | 'SALE' | string;
+  amount: number | string;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface CashierShift {
+  id: string;
+  hotelId: string;
+  userId: string;
+  terminalName?: string | null;
+  openedAt: string;
+  closedAt?: string | null;
+  openingFloat: number | string;
+  cashPayments: number | string;
+  cashSales: number | string;
+  refunds: number | string;
+  paidOuts: number | string;
+  cashDrops: number | string;
+  expectedCash: number | string;
+  actualCash?: number | string | null;
+  variance?: number | string | null;
+  status: 'OPEN' | 'CLOSED';
+  notes?: string | null;
+  transactions?: CashDrawerTransaction[];
+}
+
+export interface MenuItem {
+  id: string;
+  hotelId: string;
+  name: string;
+  category: string;
+  price: number | string;
+  isVeg: boolean;
+  spiceLevel?: string;
+  recipeIngredients?: {
+    id: string;
+    quantity: number;
+    stockItem?: {
+      id: string;
+      itemName: string;
+      unit: string;
+      quantity: number;
+    };
+  }[];
+}
+
+export interface PosOrderItem {
+  id?: string;
+  orderId?: string;
+  menuItemId: string;
+  quantity: number;
+  notes?: string | null;
+  unitPrice: number | string;
+  lineTotal: number | string;
+  menuItem?: MenuItem;
+}
+
+export interface PosOrder {
+  id: string;
+  hotelId: string;
+  tableNumber?: string | null;
+  orderSource: string;
+  reservationId?: string | null;
+  guestName?: string | null;
+  kotPrinted: boolean;
+  subtotal: number | string;
+  gstAmount: number | string;
+  grandTotal: number | string;
+  paymentStatus: string;
+  paymentMode?: string | null;
+  status: 'Pending' | 'Preparing' | 'Ready' | 'Delivered' | 'Completed' | 'Cancelled';
+  createdAt: string;
+  completedAt?: string | null;
+  items: PosOrderItem[];
+}
+
+export interface GroceryStockItem {
+  id: string;
+  hotelId: string;
+  itemName: string;
+  unit: string;
+  quantity: number;
+  minAlert: number;
+}
+
 export interface ApiErrorResponse {
   error: string;
   code?: string;
