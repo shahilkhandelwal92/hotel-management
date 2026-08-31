@@ -70,6 +70,45 @@ model Hotel {
   staffAttendanceLogs StaffAttendanceLog[]
   userRoles           UserRole[]
   invoiceSequences    InvoiceSequence[]
+
+  // Enterprise Framework Relations
+  approvalPolicies    ApprovalPolicy[]
+  approvalRequests    ApprovalRequest[]
+  hotelTasks          HotelTask[]
+  outboxEvents        OutboxEvent[]
+  webhookEndpoints    WebhookEndpoint[]
+  integrationLogs     IntegrationLog[]
+  departments         Department[]
+  jobRoles            JobRole[]
+  reservationDeposits ReservationDeposit[]
+  noShowRecords       NoShowRecord[]
+  waitlists           ReservationWaitlist[]
+  groupBlocks         GroupBlock[]
+  cashierShifts       CashierShift[]
+  arAccounts          ARAccount[]
+  vendorAccounts      VendorAccount[]
+  maintenanceAssets   MaintenanceAsset[]
+  workOrders          WorkOrder[]
+  preventiveSchedules PreventiveMaintenanceSchedule[]
+  purchaseRequisitions PurchaseRequisition[]
+  purchaseOrders      PurchaseOrder[]
+  goodsReceiptNotes   GoodsReceiptNote[]
+  inventoryStores     InventoryStore[]
+  stockTransfers      StockTransfer[]
+  linenItems          LinenItem[]
+  minibarItems        MinibarItem[]
+  minibarConsumptions MinibarConsumption[]
+  channelConnections  ChannelConnection[]
+  channelReservations ChannelReservation[]
+  corporateLeads      CorporateLead[]
+  corporateContracts  CorporateContract[]
+  messageTemplates    MessageTemplate[]
+  guestMessageLogs    GuestMessageLog[]
+  loyaltyAccounts     LoyaltyAccount[]
+  feedbackSurveys     GuestFeedbackSurvey[]
+  serviceRecoveryTickets ServiceRecoveryTicket[]
+  rateRestrictions    RateRestriction[]
+  currencyRates       CurrencyRate[]
 }
 
 // Handles Super Admins, Hotel Admins, Staff, and Corporate Clients
@@ -279,7 +318,7 @@ model Room {
   housekeepingTasks HousekeepingTask[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([hotelId, number])
 }
@@ -301,7 +340,7 @@ model Amenity {
   bookings AmenityBooking[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model AmenityBooking {
@@ -324,7 +363,7 @@ model AmenityBooking {
   status        String   @default("Confirmed") // Confirmed, Completed, Cancelled
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 // In-House Restaurant & Kitchen Menu
@@ -344,7 +383,7 @@ model MenuItem {
   recipeIngredients RecipeIngredient[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 // Kitchen Inventory & Grocery Tracking
@@ -627,6 +666,9 @@ model Reservation {
   guestRequests     GuestRequest[]
   amenityBookings   AmenityBooking[]
   posOrders         PosOrder[]
+  deposits          ReservationDeposit[]
+  noShowRecord      NoShowRecord?
+  channelReservation ChannelReservation?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -1001,6 +1043,8 @@ model Folio {
   status          String   @default("Open") // Open, Closed, Transferred
 
   transactions    FolioTransaction[]
+  folioWindows    FolioWindow[]
+  routingRules    FolioRoutingRule[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -1433,4 +1477,1227 @@ model StaffAttendanceLog {
   @@index([userId, createdAt])
   @@index([hotelId, createdAt])
   @@index([hotelId, action, createdAt]) // late check-in detection
+}
+
+// ─────────────────────────────────────────────────────────────
+// 1. APPROVAL ENGINE
+// ─────────────────────────────────────────────────────────────
+model ApprovalPolicy {
+  id               String   @id @default(uuid())
+  hotelId          String
+  hotel            Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  actionType       String   // DISCOUNT, REFUND, RATE_OVERRIDE, INVOICE_CANCEL, PO_APPROVE, STOCK_ADJUST, CASHIER_VARIANCE, CREDIT_LIMIT, COMP_ROOM, WRITE_OFF
+  minAmount        Decimal? @db.Decimal(18, 2)
+  maxAmount        Decimal? @db.Decimal(18, 2)
+  requiredRole     String   // Role required to approve (e.g. MANAGER, HOTEL_ADMIN)
+  approvalLevels   Int      @default(1)
+  autoApproveBelow Decimal? @db.Decimal(18, 2)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  requests         ApprovalRequest[]
+
+  @@index([hotelId, actionType, isActive])
+}
+
+model ApprovalRequest {
+  id              String   @id @default(uuid())
+  hotelId         String
+  hotel           Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  policyId        String?
+  policy          ApprovalPolicy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  requesterId     String
+  actionType      String   // DISCOUNT, REFUND, RATE_OVERRIDE, etc.
+  entityType      String   // Reservation, Folio, PosOrder, PurchaseOrder, CashierShift
+  entityId        String
+  requestedAmount Decimal? @db.Decimal(18, 2)
+  reason          String
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED
+  currentStep     Int      @default(1)
+  totalSteps      Int      @default(1)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  steps           ApprovalStep[]
+  actions         ApprovalAction[]
+
+  @@index([hotelId, status])
+  @@index([hotelId, entityType, entityId])
+}
+
+model ApprovalStep {
+  id          String   @id @default(uuid())
+  requestId   String
+  request     ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  stepNumber  Int
+  targetRole  String
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  comments    String?
+  createdAt   DateTime @default(now())
+
+  @@index([requestId, stepNumber])
+}
+
+model ApprovalAction {
+  id          String   @id @default(uuid())
+  requestId   String
+  request     ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actorId     String
+  action      String   // SUBMITTED, APPROVED, REJECTED, CANCELLED, DELEGATED
+  comments    String?
+  createdAt   DateTime @default(now())
+
+  @@index([requestId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 2. TASK & TRACE ENGINE
+// ─────────────────────────────────────────────────────────────
+model HotelTask {
+  id            String   @id @default(uuid())
+  hotelId       String
+  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  category      String   // GUEST_REQUEST, MAINTENANCE, VIP_ARRIVAL, AIRPORT_PICKUP, WAKE_UP_CALL, LATE_CHECKOUT, INSPECTION, AR_COLLECTION, GENERAL
+  priority      String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  title         String
+  description   String?
+  status        String   @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED, ESCALATED
+  dueDate       DateTime?
+  roomId        String?
+  guestId       String?
+  reservationId String?
+  assignedTo    String?  // userId
+  createdBy     String   // userId
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  comments      TaskComment[]
+  statusHistory TaskStatusHistory[]
+
+  @@index([hotelId, status, priority])
+  @@index([hotelId, category])
+  @@index([hotelId, assignedTo])
+  @@index([hotelId, dueDate])
+}
+
+model TaskComment {
+  id        String    @id @default(uuid())
+  taskId    String
+  task      HotelTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  comment   String
+  createdAt DateTime  @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+model TaskStatusHistory {
+  id         String    @id @default(uuid())
+  taskId     String
+  task       HotelTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fromStatus String
+  toStatus   String
+  changedBy  String
+  reason     String?
+  createdAt  DateTime  @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 3. OUTBOX & INTEGRATION PLATFORM
+// ─────────────────────────────────────────────────────────────
+model OutboxEvent {
+  id            String   @id @default(uuid())
+  hotelId       String
+  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  eventType     String   // RESERVATION_CREATED, CHECKIN_COMPLETED, PAYMENT_PROCESSED, INVOICE_GENERATED, FOLIO_CHARGED, GUEST_MESSAGE_DISPATCH, OTA_AVAILABILITY_SYNC, WEBHOOK_EVENT
+  aggregateType String   // Reservation, Folio, Payment, Invoice, GuestMessage, RoomBlock
+  aggregateId   String
+  payload       Json
+  status        String   @default("PENDING") // PENDING, PROCESSING, PUBLISHED, FAILED, DEAD_LETTER
+  retryCount    Int      @default(0)
+  maxRetries    Int      @default(5)
+  nextRetryAt   DateTime?
+  errorMessage  String?
+  publishedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([hotelId, status, nextRetryAt])
+  @@index([aggregateType, aggregateId])
+}
+
+model WebhookEndpoint {
+  id          String   @id @default(uuid())
+  hotelId     String
+  hotel       Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  url         String
+  secret      String   // HMAC signing secret
+  events      Json     // Array of subscribed event strings
+  isActive    Boolean  @default(true)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deliveries  WebhookDeliveryAttempt[]
+
+  @@index([hotelId, isActive])
+}
+
+model WebhookDeliveryAttempt {
+  id           String          @id @default(uuid())
+  endpointId   String
+  endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  eventId      String
+  statusCode   Int?
+  responseBody String?
+  durationMs   Int?
+  success      Boolean         @default(false)
+  errorMessage String?
+  createdAt    DateTime        @default(now())
+
+  @@index([endpointId, createdAt])
+}
+
+model IntegrationLog {
+  id             String   @id @default(uuid())
+  hotelId        String
+  hotel          Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  provider       String   // BOOKING_COM, EXPEDIA, AGODA, AIRBNB, MAKEMYTRIP, RAZORPAY, STRIPE, TWILIO, GUPSHUP, SENDGRID
+  direction      String   // INBOUND, OUTBOUND
+  action         String   // SYNC_AVAILABILITY, SYNC_RATE, IMPORT_RESERVATION, SEND_MESSAGE, PROCESS_PAYMENT
+  status         String   // SUCCESS, FAILED, RETRYING
+  requestPayload Json?
+  responsePayload Json?
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+
+  @@index([hotelId, provider, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 4. HIERARCHICAL RBAC & DEPARTMENTS
+// ─────────────────────────────────────────────────────────────
+model Department {
+  id          String   @id @default(uuid())
+  hotelId     String
+  hotel       Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name        String   // Front Office, Housekeeping, Food & Beverage, Finance, Engineering, Sales & Marketing, Human Resources, Security, Executive
+  code        String   // FO, HK, FNB, FIN, ENG, SM, HR, SEC, EXEC
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  jobRoles    JobRole[]
+
+  @@unique([hotelId, code])
+  @@index([hotelId])
+}
+
+model JobRole {
+  id            String     @id @default(uuid())
+  hotelId       String
+  hotel         Hotel      @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  title         String   // General Manager, Front Desk Agent, Duty Manager, Executive Housekeeper, Chef, F&B Captain, Financial Controller, Cashier, AR Accountant, Chief Engineer
+  code          String
+  baseRole      String     @default("STAFF") // Maps to existing 13 roles
+  approvalLimit Decimal    @default(0) @db.Decimal(18, 2)
+  description   String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  userAssignments UserRoleAssignment[]
+
+  @@unique([hotelId, code])
+  @@index([hotelId, departmentId])
+}
+
+model UserRoleAssignment {
+  id          String   @id @default(uuid())
+  userId      String
+  jobRoleId   String
+  jobRole     JobRole  @relation(fields: [jobRoleId], references: [id], onDelete: Cascade)
+  hotelId     String
+  assignedAt  DateTime @default(now())
+
+  @@unique([userId, jobRoleId, hotelId])
+  @@index([userId, hotelId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 5. SPLIT FOLIOS & ROUTING
+// ─────────────────────────────────────────────────────────────
+model FolioWindow {
+  id            String   @id @default(uuid())
+  folioId       String
+  folio         Folio    @relation(fields: [folioId], references: [id], onDelete: Cascade)
+  windowNumber  Int      @default(1) // Window 1 (Master/Room), Window 2 (Guest/Incidentals), Window 3 (Company), Window 4 (Travel Agent)
+  name          String   // e.g. "Room & Tax", "Personal Expenses", "Corporate Billing"
+  payerType     String   @default("GUEST") // GUEST, COMPANY, TRAVEL_AGENT
+  payerId       String?  // guestId, companyId, or travelAgentId
+  balance       Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  routingRules  FolioRoutingRule[]
+
+  @@unique([folioId, windowNumber])
+  @@index([folioId])
+}
+
+model FolioRoutingRule {
+  id             String      @id @default(uuid())
+  folioId        String
+  folio          Folio       @relation(fields: [folioId], references: [id], onDelete: Cascade)
+  targetWindowId String
+  targetWindow   FolioWindow @relation(fields: [targetWindowId], references: [id], onDelete: Cascade)
+  chargeCategory String      // ROOM_CHARGE, FOOD_BEVERAGE, AMENITY, MINIBAR, LAUNDRY, SPA, ALL
+  createdAt      DateTime    @default(now())
+
+  @@index([folioId, chargeCategory])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 6. DEPOSITS & NO-SHOWS
+// ─────────────────────────────────────────────────────────────
+model ReservationDeposit {
+  id             String      @id @default(uuid())
+  hotelId        String
+  hotel          Hotel       @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  reservationId  String
+  reservation    Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  amount         Decimal     @db.Decimal(18, 2)
+  currency       String      @default("INR")
+  paymentMethod  String      // UPI, Card, Cash, BankTransfer
+  status         String      @default("REQUIRED") // REQUIRED, RECEIVED, APPLIED, REFUNDED, FORFEITED
+  transactionRef String?
+  paidAt         DateTime?
+  appliedAt      DateTime?
+  refundedAt     DateTime?
+  forfeitedAt    DateTime?
+  notes          String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([hotelId, status])
+  @@index([reservationId])
+}
+
+model NoShowRecord {
+  id                String      @id @default(uuid())
+  hotelId           String
+  hotel             Hotel       @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  reservationId     String      @unique
+  reservation       Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  noShowDate        DateTime
+  noShowFee         Decimal     @default(0) @db.Decimal(18, 2)
+  feeBilled         Boolean     @default(false)
+  roomReleased      Boolean     @default(true)
+  inventoryReopened Boolean     @default(true)
+  processedBy       String      // userId
+  createdAt         DateTime    @default(now())
+
+  @@index([hotelId, noShowDate])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 7. WAITLIST & GROUP BLOCKS
+// ─────────────────────────────────────────────────────────────
+model ReservationWaitlist {
+  id             String   @id @default(uuid())
+  hotelId        String
+  hotel          Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  guestName      String
+  guestPhone     String
+  guestEmail     String?
+  roomCategoryId String?
+  arrivalDate    DateTime
+  departureDate  DateTime
+  numberOfRooms  Int      @default(1)
+  priority       Int      @default(1) // 1=Normal, 2=High, 3=VIP
+  status         String   @default("ACTIVE") // ACTIVE, CONVERTED, EXPIRED, CANCELLED
+  convertedResId String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([hotelId, status, arrivalDate])
+}
+
+model GroupBlock {
+  id             String   @id @default(uuid())
+  hotelId        String
+  hotel          Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  groupName      String
+  companyName    String?
+  contactPerson  String
+  contactEmail   String
+  contactPhone   String
+  startDate      DateTime
+  endDate        DateTime
+  cutoffDate     DateTime
+  totalRooms     Int
+  pickedUpRooms  Int      @default(0)
+  status         String   @default("DEFINITE") // TENTATIVE, DEFINITE, CANCELLED, RELEASED
+  negotiatedRate Decimal  @db.Decimal(18, 2)
+  masterFolioId  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  roomingList    GroupRoomingList[]
+
+  @@index([hotelId, status, startDate])
+}
+
+model GroupRoomingList {
+  id            String     @id @default(uuid())
+  groupBlockId  String
+  groupBlock    GroupBlock @relation(fields: [groupBlockId], references: [id], onDelete: Cascade)
+  guestName     String
+  guestEmail    String?
+  guestPhone    String?
+  roomNumber    String?
+  reservationId String?
+  status        String     @default("PENDING") // PENDING, RESERVED, CHECKED_IN, CANCELLED
+  createdAt     DateTime   @default(now())
+
+  @@index([groupBlockId, status])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 8. CASHIERING & SHIFTS
+// ─────────────────────────────────────────────────────────────
+model CashierShift {
+  id           String   @id @default(uuid())
+  hotelId      String
+  hotel        Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  userId       String   // cashier userId
+  shiftNumber  Int      @default(1)
+  openedAt     DateTime @default(now())
+  closedAt     DateTime?
+  openingFloat Decimal  @default(0) @db.Decimal(18, 2)
+  cashSales    Decimal  @default(0) @db.Decimal(18, 2)
+  cashPayments Decimal  @default(0) @db.Decimal(18, 2)
+  refunds      Decimal  @default(0) @db.Decimal(18, 2)
+  paidOuts     Decimal  @default(0) @db.Decimal(18, 2)
+  cashDrops    Decimal  @default(0) @db.Decimal(18, 2)
+  expectedCash Decimal  @default(0) @db.Decimal(18, 2)
+  actualCash   Decimal? @db.Decimal(18, 2)
+  variance     Decimal? @db.Decimal(18, 2)
+  status       String   @default("OPEN") // OPEN, CLOSED, AUDITED
+  notes        String?
+  supervisorId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  transactions CashDrawerTransaction[]
+
+  @@index([hotelId, status])
+  @@index([userId, status])
+}
+
+model CashDrawerTransaction {
+  id          String       @id @default(uuid())
+  shiftId     String
+  shift       CashierShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  type        String       // OPENING_FLOAT, CASH_SALE, FOLIO_PAYMENT, REFUND, PAID_OUT, CASH_DROP
+  amount      Decimal      @db.Decimal(18, 2)
+  referenceId String?      // FolioTransactionId, PosOrderId, etc.
+  notes       String?
+  createdAt   DateTime     @default(now())
+
+  @@index([shiftId, type])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 9. ACCOUNTS RECEIVABLE (AR) / CITY LEDGER
+// ─────────────────────────────────────────────────────────────
+model ARAccount {
+  id               String   @id @default(uuid())
+  hotelId          String
+  hotel            Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  accountType      String   // CORPORATE, TRAVEL_AGENT, WHOLESALE
+  accountName      String
+  accountCode      String
+  contactPerson    String
+  email            String
+  phone            String
+  address          String?
+  gstin            String?
+  creditLimit      Decimal  @default(0) @db.Decimal(18, 2)
+  currentBalance   Decimal  @default(0) @db.Decimal(18, 2)
+  paymentTermsDays Int      @default(30)
+  status           String   @default("ACTIVE") // ACTIVE, SUSPENDED, BLOCKED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  invoices         ARInvoice[]
+  payments         ARPayment[]
+
+  @@unique([hotelId, accountCode])
+  @@index([hotelId, status])
+}
+
+model ARInvoice {
+  id            String    @id @default(uuid())
+  accountId     String
+  account       ARAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  hotelId       String
+  invoiceNumber String
+  invoiceDate   DateTime
+  dueDate       DateTime
+  totalAmount   Decimal   @db.Decimal(18, 2)
+  paidAmount    Decimal   @default(0) @db.Decimal(18, 2)
+  balanceAmount Decimal   @db.Decimal(18, 2)
+  status        String    @default("UNPAID") // UNPAID, PARTIAL, PAID, OVERDUE, CANCELLED
+  sourceFolioId String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  allocations   ARAllocation[]
+
+  @@unique([hotelId, invoiceNumber])
+  @@index([accountId, status])
+  @@index([dueDate, status])
+}
+
+model ARPayment {
+  id                String    @id @default(uuid())
+  accountId         String
+  account           ARAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  hotelId           String
+  paymentNumber     String
+  paymentDate       DateTime
+  amount            Decimal   @db.Decimal(18, 2)
+  unallocatedAmount Decimal   @db.Decimal(18, 2)
+  paymentMethod     String    // BANK_TRANSFER, CHEQUE, UPI, CARD
+  reference         String?
+  notes             String?
+  createdAt         DateTime  @default(now())
+
+  allocations       ARAllocation[]
+
+  @@unique([hotelId, paymentNumber])
+  @@index([accountId, createdAt])
+}
+
+model ARAllocation {
+  id        String    @id @default(uuid())
+  paymentId String
+  payment   ARPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoiceId String
+  invoice   ARInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount    Decimal   @db.Decimal(18, 2)
+  createdAt DateTime  @default(now())
+
+  @@index([paymentId])
+  @@index([invoiceId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 10. ACCOUNTS PAYABLE (AP) & VENDOR LEDGER
+// ─────────────────────────────────────────────────────────────
+model VendorAccount {
+  id               String   @id @default(uuid())
+  hotelId          String
+  hotel            Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  vendorName       String
+  vendorCode       String
+  category         String   // FNB_SUPPLIER, LINEN_SUPPLIER, MAINTENANCE, UTILITIES, AMENITIES, IT_SERVICES
+  contactPerson    String
+  email            String
+  phone            String
+  address          String?
+  gstin            String?
+  bankDetails      Json?
+  currentBalance   Decimal  @default(0) @db.Decimal(18, 2)
+  paymentTermsDays Int      @default(30)
+  status           String   @default("ACTIVE") // ACTIVE, INACTIVE, BLOCKED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  purchaseOrders   PurchaseOrder[]
+  apInvoices       APInvoice[]
+  apPayments       APPayment[]
+
+  @@unique([hotelId, vendorCode])
+  @@index([hotelId, status])
+}
+
+model APInvoice {
+  id              String        @id @default(uuid())
+  vendorId        String
+  vendor          VendorAccount @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  hotelId         String
+  invoiceNumber   String
+  invoiceDate     DateTime
+  dueDate         DateTime
+  poId            String?
+  grnId           String?
+  totalAmount     Decimal       @db.Decimal(18, 2)
+  paidAmount      Decimal       @default(0) @db.Decimal(18, 2)
+  balanceAmount   Decimal       @db.Decimal(18, 2)
+  status          String        @default("UNPAID") // UNPAID, PARTIAL, PAID, DISPUTED
+  threeWayMatched Boolean       @default(false)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  allocations     APAllocation[]
+
+  @@unique([hotelId, invoiceNumber])
+  @@index([vendorId, status])
+  @@index([dueDate, status])
+}
+
+model APPayment {
+  id                String        @id @default(uuid())
+  vendorId          String
+  vendor            VendorAccount @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  hotelId           String
+  paymentNumber     String
+  paymentDate       DateTime
+  amount            Decimal       @db.Decimal(18, 2)
+  unallocatedAmount Decimal       @db.Decimal(18, 2)
+  paymentMethod     String        // BANK_TRANSFER, CHEQUE, UPI
+  reference         String?
+  notes             String?
+  createdAt         DateTime      @default(now())
+
+  allocations       APAllocation[]
+
+  @@unique([hotelId, paymentNumber])
+  @@index([vendorId, createdAt])
+}
+
+model APAllocation {
+  id        String    @id @default(uuid())
+  paymentId String
+  payment   APPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoiceId String
+  invoice   APInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount    Decimal   @db.Decimal(18, 2)
+  createdAt DateTime  @default(now())
+
+  @@index([paymentId])
+  @@index([invoiceId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 11. ENGINEERING & MAINTENANCE
+// ─────────────────────────────────────────────────────────────
+model MaintenanceAsset {
+  id             String   @id @default(uuid())
+  hotelId        String
+  hotel          Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name           String   // e.g. "Chiller Unit 1", "Elevator A", "Generator 500kVA", "Boiler 2"
+  code           String
+  category       String   // HVAC, ELECTRICAL, PLUMBING, ELEVATOR, GENERATOR, KITCHEN_EQUIPMENT, FIRE_SAFETY
+  location       String   // Basement, Rooftop, Floor 3, Kitchen
+  serialNumber   String?
+  modelNumber    String?
+  purchaseDate   DateTime?
+  warrantyExpiry DateTime?
+  status         String   @default("OPERATIONAL") // OPERATIONAL, UNDER_MAINTENANCE, BREAKDOWN, RETIRED
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workOrders     WorkOrder[]
+  schedules      PreventiveMaintenanceSchedule[]
+
+  @@unique([hotelId, code])
+  @@index([hotelId, status])
+}
+
+model WorkOrder {
+  id                 String   @id @default(uuid())
+  hotelId            String
+  hotel              Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  assetId            String?
+  asset              MaintenanceAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  roomId             String?
+  workOrderNumber    String
+  title              String
+  description        String
+  priority           String   @default("MEDIUM") // LOW, MEDIUM, HIGH, EMERGENCY
+  category           String   // CORRECTIVE, PREVENTIVE, GUEST_REPORTED
+  status             String   @default("REPORTED") // REPORTED, ASSIGNED, IN_PROGRESS, WAITING_PARTS, COMPLETED, VERIFIED, CLOSED
+  assignedTo         String?  // technician userId
+  reportedBy         String   // userId
+  startedAt          DateTime?
+  completedAt        DateTime?
+  costEstimate       Decimal? @db.Decimal(18, 2)
+  actualCost         Decimal? @db.Decimal(18, 2)
+  lockRoomOutOfOrder Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  partsUsed          WorkOrderPart[]
+
+  @@unique([hotelId, workOrderNumber])
+  @@index([hotelId, status, priority])
+  @@index([hotelId, roomId])
+}
+
+model WorkOrderPart {
+  id          String    @id @default(uuid())
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  partName    String
+  quantity    Int       @default(1)
+  unitCost    Decimal   @db.Decimal(18, 2)
+  totalCost   Decimal   @db.Decimal(18, 2)
+  createdAt   DateTime  @default(now())
+
+  @@index([workOrderId])
+}
+
+model PreventiveMaintenanceSchedule {
+  id           String           @id @default(uuid())
+  assetId      String
+  asset        MaintenanceAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  hotelId      String
+  hotel        Hotel            @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  title        String
+  frequency    String           // DAILY, WEEKLY, MONTHLY, QUARTERLY, ANNUALLY
+  lastRunDate  DateTime?
+  nextRunDate  DateTime
+  assignedRole String           @default("TECHNICIAN")
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([hotelId, nextRunDate, isActive])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 12. PROCUREMENT & PURCHASING
+// ─────────────────────────────────────────────────────────────
+model PurchaseRequisition {
+  id            String   @id @default(uuid())
+  hotelId       String
+  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  prNumber      String
+  department    String
+  requestedBy   String   // userId
+  estimatedCost Decimal  @db.Decimal(18, 2)
+  status        String   @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED, CONVERTED_TO_PO
+  approvalReqId String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items         PurchaseRequisitionItem[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([hotelId, prNumber])
+  @@index([hotelId, status])
+}
+
+model PurchaseRequisitionItem {
+  id                String              @id @default(uuid())
+  prId              String
+  requisition       PurchaseRequisition @relation(fields: [prId], references: [id], onDelete: Cascade)
+  itemName          String
+  quantity          Decimal             @db.Decimal(18, 2)
+  unit              String
+  estimatedUnitCost Decimal             @db.Decimal(18, 2)
+  totalCost         Decimal             @db.Decimal(18, 2)
+  createdAt         DateTime            @default(now())
+
+  @@index([prId])
+}
+
+model PurchaseOrder {
+  id            String              @id @default(uuid())
+  hotelId       String
+  hotel         Hotel               @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  vendorId      String
+  vendor        VendorAccount       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  prId          String?
+  requisition   PurchaseRequisition? @relation(fields: [prId], references: [id], onDelete: SetNull)
+  poNumber      String
+  poDate        DateTime            @default(now())
+  expectedDate  DateTime?
+  subtotal      Decimal             @db.Decimal(18, 2)
+  taxAmount     Decimal             @db.Decimal(18, 2)
+  totalAmount   Decimal             @db.Decimal(18, 2)
+  status        String              @default("DRAFT") // DRAFT, APPROVED, ORDERED, PARTIAL_RECEIVED, RECEIVED, CLOSED, CANCELLED
+  approvedBy    String?
+  notes         String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  items         PurchaseOrderItem[]
+  goodsReceipts GoodsReceiptNote[]
+
+  @@unique([hotelId, poNumber])
+  @@index([hotelId, status])
+  @@index([vendorId, status])
+}
+
+model PurchaseOrderItem {
+  id            String        @id @default(uuid())
+  poId          String
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  itemName      String
+  orderedQty    Decimal       @db.Decimal(18, 2)
+  receivedQty   Decimal       @default(0) @db.Decimal(18, 2)
+  unit          String
+  unitPrice     Decimal       @db.Decimal(18, 2)
+  taxPercent    Decimal       @default(0) @db.Decimal(18, 2)
+  totalPrice    Decimal       @db.Decimal(18, 2)
+  createdAt     DateTime      @default(now())
+
+  @@index([poId])
+}
+
+model GoodsReceiptNote {
+  id            String        @id @default(uuid())
+  hotelId       String
+  hotel         Hotel         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  poId          String
+  po            PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  grnNumber     String
+  receivedDate  DateTime      @default(now())
+  receivedBy    String        // userId
+  status        String        @default("RECEIVED") // RECEIVED, QUALITY_CHECKED, ACCEPTED, REJECTED
+  invoiceNumber String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+
+  items         GoodsReceiptItem[]
+
+  @@unique([hotelId, grnNumber])
+  @@index([hotelId, poId])
+}
+
+model GoodsReceiptItem {
+  id          String           @id @default(uuid())
+  grnId       String
+  grn         GoodsReceiptNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  itemName    String
+  receivedQty Decimal          @db.Decimal(18, 2)
+  acceptedQty Decimal          @db.Decimal(18, 2)
+  rejectedQty Decimal          @default(0) @db.Decimal(18, 2)
+  unitPrice   Decimal          @db.Decimal(18, 2)
+  createdAt   DateTime         @default(now())
+
+  @@index([grnId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 13. MULTI-STORE INVENTORY & TRANSFERS
+// ─────────────────────────────────────────────────────────────
+model InventoryStore {
+  id            String   @id @default(uuid())
+  hotelId       String
+  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name          String   // Central Store, Kitchen Store, Housekeeping Store, Linen Store, Main Bar Store
+  code          String
+  location      String?
+  storekeeperId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  outgoingTransfers StockTransfer[] @relation("SourceStore")
+  incomingTransfers StockTransfer[] @relation("DestinationStore")
+
+  @@unique([hotelId, code])
+  @@index([hotelId])
+}
+
+model StockTransfer {
+  id             String         @id @default(uuid())
+  hotelId        String
+  hotel          Hotel          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  transferNumber String
+  sourceStoreId  String
+  sourceStore    InventoryStore @relation("SourceStore", fields: [sourceStoreId], references: [id], onDelete: Cascade)
+  destStoreId    String
+  destStore      InventoryStore @relation("DestinationStore", fields: [destStoreId], references: [id], onDelete: Cascade)
+  itemName       String
+  quantity       Decimal        @db.Decimal(18, 2)
+  unit           String
+  status         String         @default("REQUESTED") // REQUESTED, IN_TRANSIT, RECEIVED, REJECTED
+  requestedBy    String
+  receivedBy     String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([hotelId, transferNumber])
+  @@index([hotelId, status])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 14. LINEN & MINIBAR
+// ─────────────────────────────────────────────────────────────
+model LinenItem {
+  id          String   @id @default(uuid())
+  hotelId     String
+  hotel       Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name        String   // King Bed Sheet, Pillowcase, Bath Towel, Hand Towel, Bath Mat, Duvet Cover
+  code        String
+  parStock    Int      @default(0)
+  totalStock  Int      @default(0)
+  inRooms     Int      @default(0)
+  inLinenRoom Int      @default(0)
+  inLaundry   Int      @default(0)
+  damaged     Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([hotelId, code])
+  @@index([hotelId])
+}
+
+model MinibarItem {
+  id              String   @id @default(uuid())
+  hotelId         String
+  hotel           Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name            String   // Sparkling Water, Premium Soda, Chocolate Bar, Roasted Nuts, Energy Drink
+  code            String
+  price           Decimal  @db.Decimal(18, 2)
+  costPrice       Decimal  @db.Decimal(18, 2)
+  stockQty        Int      @default(0)
+  isComplimentary Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  consumptions    MinibarConsumption[]
+
+  @@unique([hotelId, code])
+  @@index([hotelId])
+}
+
+model MinibarConsumption {
+  id            String      @id @default(uuid())
+  hotelId       String
+  hotel         Hotel       @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  roomId        String
+  reservationId String
+  minibarItemId String
+  minibarItem   MinibarItem @relation(fields: [minibarItemId], references: [id], onDelete: Cascade)
+  quantity      Int         @default(1)
+  unitPrice     Decimal     @db.Decimal(18, 2)
+  totalAmount   Decimal     @db.Decimal(18, 2)
+  folioId       String?
+  postedToFolio Boolean     @default(false)
+  recordedBy    String      // userId
+  createdAt     DateTime    @default(now())
+
+  @@index([hotelId, roomId, reservationId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 15. CHANNEL MANAGER & OTA DISTRIBUTION
+// ─────────────────────────────────────────────────────────────
+model ChannelConnection {
+  id               String   @id @default(uuid())
+  hotelId          String
+  hotel            Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  channelCode      String   // BOOKING_COM, EXPEDIA, AGODA, AIRBNB, MAKEMYTRIP, GOIBIBO
+  channelName      String
+  apiKey           String?
+  apiSecret        String?
+  hotelIdOnChannel String
+  isActive         Boolean  @default(true)
+  syncStatus       String   @default("IDLE") // IDLE, SYNCING, ERROR
+  lastSyncAt       DateTime?
+  errorMessage     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  roomMappings     ChannelRoomMapping[]
+  rateMappings     ChannelRateMapping[]
+  syncJobs         ChannelSyncJob[]
+
+  @@unique([hotelId, channelCode])
+  @@index([hotelId, isActive])
+}
+
+model ChannelRoomMapping {
+  id              String            @id @default(uuid())
+  connectionId    String
+  connection      ChannelConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  roomCategoryId  String
+  channelRoomId   String
+  channelRoomName String
+  createdAt       DateTime          @default(now())
+
+  @@unique([connectionId, roomCategoryId])
+  @@index([connectionId])
+}
+
+model ChannelRateMapping {
+  id              String            @id @default(uuid())
+  connectionId    String
+  connection      ChannelConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  ratePlanId      String
+  channelRateId   String
+  channelRateName String
+  multiplier      Decimal           @default(1.0) @db.Decimal(18, 4)
+  createdAt       DateTime          @default(now())
+
+  @@unique([connectionId, ratePlanId])
+  @@index([connectionId])
+}
+
+model ChannelSyncJob {
+  id           String            @id @default(uuid())
+  connectionId String
+  connection   ChannelConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  jobType      String            // AVAILABILITY_PUSH, RATE_PUSH, RESTRICTION_PUSH, RESERVATION_PULL
+  status       String            @default("PENDING") // PENDING, PROCESSING, SUCCESS, FAILED
+  payload      Json?
+  errorMessage String?
+  durationMs   Int?
+  createdAt    DateTime          @default(now())
+
+  @@index([connectionId, status])
+}
+
+model ChannelReservation {
+  id               String      @id @default(uuid())
+  hotelId          String
+  hotel            Hotel       @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  channelCode      String
+  channelBookingId String
+  reservationId    String?     @unique
+  reservation      Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  guestName        String
+  guestEmail       String?
+  arrivalDate      DateTime
+  departureDate    DateTime
+  totalAmount      Decimal     @db.Decimal(18, 2)
+  commissionAmount Decimal     @default(0) @db.Decimal(18, 2)
+  status           String      // CONFIRMED, MODIFIED, CANCELLED
+  rawPayload       Json?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@unique([hotelId, channelCode, channelBookingId])
+  @@index([hotelId, channelCode])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 16. CORPORATE CRM & CONTRACTS
+// ─────────────────────────────────────────────────────────────
+model CorporateLead {
+  id             String   @id @default(uuid())
+  hotelId        String
+  hotel          Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  companyName    String
+  contactName    String
+  contactEmail   String
+  contactPhone   String
+  estimatedValue Decimal? @db.Decimal(18, 2)
+  stage          String   @default("LEAD") // LEAD, QUALIFIED, PROPOSAL, NEGOTIATION, WON, LOST
+  assignedTo     String?  // userId
+  lostReason     String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  contracts      CorporateContract[]
+
+  @@index([hotelId, stage])
+}
+
+model CorporateContract {
+  id                 String         @id @default(uuid())
+  hotelId            String
+  hotel              Hotel          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  leadId             String?
+  lead               CorporateLead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  contractNumber     String
+  companyName        String
+  startDate          DateTime
+  endDate            DateTime
+  negotiatedDiscount Decimal        @default(0) @db.Decimal(18, 2)
+  fixedRoomRate      Decimal?       @db.Decimal(18, 2)
+  minimumNights      Int            @default(0)
+  creditLimit        Decimal        @default(0) @db.Decimal(18, 2)
+  paymentTerms       String         @default("NET_30")
+  status             String         @default("ACTIVE") // DRAFT, ACTIVE, EXPIRED, TERMINATED
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([hotelId, contractNumber])
+  @@index([hotelId, status])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 17. GUEST COMMUNICATIONS & TEMPLATES
+// ─────────────────────────────────────────────────────────────
+model MessageTemplate {
+  id        String   @id @default(uuid())
+  hotelId   String
+  hotel     Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name      String   // Booking Confirmation, Check-in Reminder, Welcome Message, Invoice Receipt, Feedback Request
+  channel   String   // EMAIL, SMS, WHATSAPP
+  subject   String?
+  body      String   // Template with {{guestName}}, {{hotelName}}, {{arrivalDate}}, etc.
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([hotelId, name, channel])
+  @@index([hotelId, isActive])
+}
+
+model GuestMessageLog {
+  id            String   @id @default(uuid())
+  hotelId       String
+  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  guestId       String?
+  reservationId String?
+  channel       String   // EMAIL, SMS, WHATSAPP
+  recipient     String
+  subject       String?
+  messageBody   String
+  status        String   @default("SENT") // PENDING, SENT, DELIVERED, FAILED
+  providerRef   String?
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+
+  @@index([hotelId, channel, status])
+  @@index([reservationId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 18. LOYALTY 2.0 DOUBLE-ENTRY LEDGER
+// ─────────────────────────────────────────────────────────────
+model LoyaltyTier {
+  id             String   @id @default(uuid())
+  name           String   // SILVER, GOLD, PLATINUM, DIAMOND
+  minPoints      Int      @default(0)
+  discountPercent Decimal @default(0) @db.Decimal(18, 2)
+  perks          Json?
+  createdAt      DateTime @default(now())
+}
+
+model LoyaltyAccount {
+  id             String   @id @default(uuid())
+  hotelId        String
+  hotel          Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  guestId        String   @unique
+  memberNumber   String
+  tier           String   @default("SILVER") // SILVER, GOLD, PLATINUM, DIAMOND
+  pointsBalance  Int      @default(0)
+  lifetimePoints Int      @default(0)
+  joinedAt       DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  transactions   LoyaltyPointTransaction[]
+
+  @@unique([hotelId, memberNumber])
+  @@index([hotelId, tier])
+}
+
+model LoyaltyPointTransaction {
+  id           String         @id @default(uuid())
+  accountId    String
+  account      LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  type         String         // EARNED, REDEEMED, EXPIRED, ADJUSTMENT, BONUS
+  points       Int            // Positive for Earned/Bonus, Negative for Redeemed/Expired
+  balanceAfter Int
+  referenceId  String?        // FolioId, ReservationId
+  description  String
+  createdAt    DateTime       @default(now())
+
+  @@index([accountId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 19. REPUTATION, CSAT & SERVICE RECOVERY
+// ─────────────────────────────────────────────────────────────
+model GuestFeedbackSurvey {
+  id                String   @id @default(uuid())
+  hotelId           String
+  hotel             Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  reservationId     String?
+  guestName         String
+  guestEmail        String?
+  rating            Int      // 1 to 5
+  npsScore          Int?     // 0 to 10
+  cleanlinessRating Int?
+  staffRating       Int?
+  foodRating        Int?
+  comments          String?
+  status            String   @default("NEW") // NEW, REVIEWED, ESCALATED, RESOLVED
+  createdAt         DateTime @default(now())
+
+  recoveryTicket    ServiceRecoveryTicket?
+
+  @@index([hotelId, rating])
+  @@index([hotelId, status])
+}
+
+model ServiceRecoveryTicket {
+  id                  String              @id @default(uuid())
+  feedbackId          String              @unique
+  feedback            GuestFeedbackSurvey @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  hotelId             String
+  hotel               Hotel               @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  issueDescription    String
+  compensationOffered String?             // e.g. "Free Breakfast Voucher", "10% Room Discount", "Late Checkout"
+  compensationAmount  Decimal?            @db.Decimal(18, 2)
+  assignedTo          String?             // userId
+  status              String              @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  resolutionNotes     String?
+  resolvedAt          DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([hotelId, status])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 20. REVENUE MANAGEMENT & RESTRICTIONS
+// ─────────────────────────────────────────────────────────────
+model RateRestriction {
+  id                String   @id @default(uuid())
+  hotelId           String
+  hotel             Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  roomCategoryId    String?
+  ratePlanId        String?
+  date              DateTime
+  minLOS            Int      @default(1)
+  maxLOS            Int?
+  closedToArrival   Boolean  @default(false)
+  closedToDeparture Boolean  @default(false)
+  stopSell          Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([hotelId, roomCategoryId, ratePlanId, date])
+  @@index([hotelId, date])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 21. MULTI-CURRENCY
+// ─────────────────────────────────────────────────────────────
+model CurrencyRate {
+  id            String   @id @default(uuid())
+  hotelId       String
+  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  currencyCode  String   // USD, EUR, GBP, AED, SGD, JPY, AUD
+  rateToBase    Decimal  @db.Decimal(18, 6) // e.g. 1 USD = 83.50 INR
+  effectiveDate DateTime
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([hotelId, currencyCode, effectiveDate])
+  @@index([hotelId, currencyCode])
 }
