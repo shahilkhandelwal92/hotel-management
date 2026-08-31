@@ -38,16 +38,17 @@
 | `src/__tests__/ratePlans.test.ts` | Rate Plan Management & Rules | `UNIT` | Jest | Rate plan priority and active rule boundaries |
 | `src/__tests__/roomBlocks.test.ts` | Room Block Allocation & Stays | `DATABASE INTEGRATION` | Jest | Date-wise room blocking, multi-night continuous stay allocation |
 | `src/__tests__/folio.test.ts` | Folio & FolioTransaction Logic | `UNIT` / `INTEGRATION` | Jest | Charge items, payment adjustments, balance reconciliation |
+| `src/__tests__/paymentIdempotency.test.ts` | Payment Idempotency & Webhook Deduplication | `CONCURRENCY INTEGRATION` / `FINANCIAL TEST` | Jest | 10 concurrent payment requests -> 1 payment; duplicate webhook replay safe |
 | `src/__tests__/timezone.test.ts` | Hotel Business Date Timezones | `UNIT` | Jest | Timezone-aware date normalization (`Asia/Kolkata`, UTC) |
 | `src/__tests__/financialReports.test.ts` | Dynamic Indian FY & P&L Reports | `UNIT` | Jest | Dynamic April-March FY calculation, EBITDA margins |
 
 ---
 
 ## Verification Summary
-- Total Suites: 22
-- Total Tests: 101
-- Passed: 101 (100%)
-- Concurrency Suites: 1
+- Total Suites: 23
+- Total Tests: 104
+- Passed: 104 (100%)
+- Concurrency Suites: 2
 - Security Suites: 5
 - Database Integration Suites: 5
 - Unit / Financial Suites: 10
