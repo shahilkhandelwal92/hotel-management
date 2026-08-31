@@ -33,6 +33,11 @@ export default function AppLayout() {
       <Stack.Screen name="housekeeping/index" />
       <Stack.Screen name="housekeeping/room" />
       <Stack.Screen name="housekeeping/lost-found" />
+      <Stack.Screen name="reservations/index" />
+      <Stack.Screen name="reservations/details" />
+      <Stack.Screen name="reservations/check-in" />
+      <Stack.Screen name="reservations/room-move" />
+      <Stack.Screen name="folio/index" />
     </Stack>
   );
 }

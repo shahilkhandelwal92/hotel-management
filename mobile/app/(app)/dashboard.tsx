@@ -108,23 +108,28 @@ export default function DashboardScreen() {
           </AppCard>
         </PermissionGate>
 
-        {/* 3. Front Desk / Reservations (Preview) */}
-        <AppCard style={[styles.moduleCard, styles.disabledModule]}>
-          <View style={styles.moduleHeader}>
-            <View style={[styles.moduleIconContainer, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
-              <Text style={styles.moduleIcon}>🛎️</Text>
-            </View>
-            <View style={styles.moduleInfo}>
-              <View style={styles.moduleTitleRow}>
-                <Text style={styles.moduleTitle}>Front Desk & Folios</Text>
-                <StatusBadge label="Phase 3" variant="default" />
+        {/* 3. Front Desk / Reservations & Folios */}
+        <PermissionGate permission="RESERVATION_VIEW">
+          <AppCard
+            style={styles.moduleCard}
+            onPress={() => router.push('/(app)/reservations')}
+          >
+            <View style={styles.moduleHeader}>
+              <View style={[styles.moduleIconContainer, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
+                <Text style={styles.moduleIcon}>🛎️</Text>
               </View>
-              <Text style={styles.moduleDescription}>
-                Arrivals, departures, check-in, deposit collection, room moves, and guest billing.
-              </Text>
+              <View style={styles.moduleInfo}>
+                <View style={styles.moduleTitleRow}>
+                  <Text style={styles.moduleTitle}>Front Desk & Folios</Text>
+                  <StatusBadge label="Ready" variant="success" />
+                </View>
+                <Text style={styles.moduleDescription}>
+                  Arrivals, departures, walk-in booking, check-in, room moves, folios & checkout.
+                </Text>
+              </View>
             </View>
-          </View>
-        </AppCard>
+          </AppCard>
+        </PermissionGate>
 
         {/* 4. Maintenance / Engineering (Preview) */}
         <AppCard style={[styles.moduleCard, styles.disabledModule]}>
