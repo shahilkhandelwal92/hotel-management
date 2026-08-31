@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import crypto from "crypto";
 import { requireFeature } from "@/lib/requireFeature";
 
-const HMAC_SECRET = process.env.STAFF_QR_SECRET || "stayos-staff-attendance-hmac-secure-secret-key-32-chars";
+const HMAC_SECRET = process.env.STAFF_QR_SECRET || (process.env.NODE_ENV === "production" ? "" : "stayos-staff-attendance-hmac-secure-secret-key-32-chars");
 
 interface QrPayload {
     userId: string;

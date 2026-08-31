@@ -94,7 +94,20 @@ export async function POST(request: NextRequest) {
     let remainingToSettle = totalOutstanding;
 
     await prisma.$transaction(async (tx) => {
-        for (const folio of folios) {
+        // Re-check idempotency inside atomic transaction boundary
+        const existingTx = await tx.folioTransaction.findFirst({
+            where: { referenceId: reference, type: "Payment" },
+        });
+        if (existingTx) {
+            return;
+        }
+
+        const currentFolios = await tx.folio.findMany({
+            where: { reservationId: stay.id, hotelId: stay.hotelId, status: "Open" },
+            orderBy: { createdAt: "asc" },
+        });
+
+        for (const folio of currentFolios) {
             const bal = new Prisma.Decimal(folio.balance);
             if (remainingToSettle.lessThanOrEqualTo(0) || bal.lessThanOrEqualTo(0)) continue;
 
