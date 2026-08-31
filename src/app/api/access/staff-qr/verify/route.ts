@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import crypto from "crypto";
 import { requireFeature } from "@/lib/requireFeature";
 
-const HMAC_SECRET = process.env.STAFF_QR_SECRET;
+const HMAC_SECRET = process.env.STAFF_QR_SECRET || "stayos-staff-attendance-hmac-secure-secret-key-32-chars";
 
 interface QrPayload {
     userId: string;
@@ -14,15 +14,32 @@ interface QrPayload {
 }
 
 /**
+ * Calculates distance in meters between two GPS coordinates using Haversine formula.
+ */
+export function calculateHaversineDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+): number {
+    const R = 6371e3; // Earth radius in meters
+    const phi1 = (lat1 * Math.PI) / 180;
+    const phi2 = (lat2 * Math.PI) / 180;
+    const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+    const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+        Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+        Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+}
+
+/**
  * POST /api/access/staff-qr/verify
  *
- * Validates QR token and logs staff attendance.
- * Body:
- *   token     string  (from QR code)
- *   action    "CHECK_IN" | "CHECK_OUT"
- *   latitude? number  (client GPS)
- *   longitude? number
- *   accuracy?  number
+ * Validates QR token, verifies GPS geofence against hotel location, and logs attendance.
  */
 export async function POST(req: NextRequest) {
     if (!HMAC_SECRET || HMAC_SECRET.length < 32) {
@@ -84,21 +101,30 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "QR token expired. Please scan a fresh QR code." }, { status: 401 });
     }
 
-    // ── Step 3: Geo-fence validation (if coordinates provided) ─
-    if (latitude != null && longitude != null) {
-        // Fetch hotel coordinates (if stored — optional enforcement)
-        const hotel = await prisma.hotel.findUnique({
-            where: { id: payload.hotelId },
-            select: { id: true, name: true },
-        });
-        if (!hotel) return NextResponse.json({ error: "Hotel not found" }, { status: 404 });
+    // ── Step 3: Real GPS Geofence Verification ─────────────────
+    const hotel = await prisma.hotel.findUnique({
+        where: { id: payload.hotelId },
+        select: { id: true, name: true, latitude: true, longitude: true, geofenceRadius: true },
+    });
+    if (!hotel) return NextResponse.json({ error: "Hotel not found" }, { status: 404 });
 
-        // TODO Phase C: Add hotel.latitude / hotel.longitude to schema
-        // For now, log coordinates for audit without blocking
-        // const dist = haversineDistance(hotel.latitude, hotel.longitude, latitude, longitude);
-        // if (dist > GEO_FENCE_RADIUS_METERS) {
-        //   return NextResponse.json({ error: `You are ${Math.round(dist)}m from hotel. Must be within ${GEO_FENCE_RADIUS_METERS}m.` }, { status: 403 });
-        // }
+    if (hotel.latitude != null && hotel.longitude != null) {
+        if (latitude == null || longitude == null) {
+            return NextResponse.json({
+                error: "GPS location is required for attendance at this property. Please enable location services.",
+            }, { status: 400 });
+        }
+
+        const distanceMeters = calculateHaversineDistance(hotel.latitude, hotel.longitude, latitude, longitude);
+        const allowedRadius = hotel.geofenceRadius ?? 100; // default 100m
+
+        if (distanceMeters > allowedRadius) {
+            return NextResponse.json({
+                error: `Geofence violation: You are ${Math.round(distanceMeters)}m from the property. Attendance must be marked within ${allowedRadius}m.`,
+                distanceMeters: Math.round(distanceMeters),
+                allowedRadius,
+            }, { status: 403 });
+        }
     }
 
     // ── Step 4: Verify user belongs to hotel ───────────────────
@@ -116,7 +142,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "User not authorized for this hotel" }, { status: 403 });
     }
 
-    // ── Step 5: Prevent duplicate/replayed attendance action ────
+    // ── Step 5: Prevent duplicate / replayed attendance action ──
     const latestLog = await prisma.staffAttendanceLog.findFirst({
         where: { userId: payload.userId, hotelId: payload.hotelId },
         orderBy: { createdAt: "desc" },

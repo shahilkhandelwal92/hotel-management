@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./corporate.module.css";
 import React from "react";
-import { mockEvents } from "@/lib/mockData";
 
 export default function CorporateLoginPage() {
     const [accessCode, setAccessCode] = useState("");
@@ -26,7 +25,7 @@ export default function CorporateLoginPage() {
             } else {
                 setError(data.error || "Invalid Access Code. Please check and try again.");
             }
-        } catch (err) {
+        } catch {
             setError("Server connection failed. Please try again.");
         } finally {
             setLoading(false);
@@ -53,7 +52,7 @@ export default function CorporateLoginPage() {
                         placeholder="e.g. TECH2026"
                         value={accessCode}
                         onChange={(e) => setAccessCode(e.target.value)}
-                        style={{ textTransform: 'uppercase' }}
+                        style={{ textTransform: "uppercase" }}
                     />
                 </div>
 

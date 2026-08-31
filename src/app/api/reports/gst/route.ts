@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getReportAccess } from "@/lib/reportAccess";
+import { parseHotelBusinessDate, formatHotelBusinessDate, DEFAULT_HOTEL_TIMEZONE } from "@/lib/timezone";
+import { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
     const url = new URL(request.url);
-    const reportAccess = await getReportAccess(request, url.searchParams.get("hotelId"));
+    const requestedHotelId = url.searchParams.get("hotelId");
+    const fromParam = url.searchParams.get("from");
+    const toParam = url.searchParams.get("to");
+    const monthParam = url.searchParams.get("month"); // e.g. "2026-04"
+    const fyParam = url.searchParams.get("financialYear"); // e.g. "2026-27"
+
+    const reportAccess = await getReportAccess(request, requestedHotelId);
     if (!reportAccess) {
         return NextResponse.json({ error: "Accounting access required" }, { status: 403 });
     }
@@ -14,15 +22,48 @@ export async function GET(request: NextRequest) {
     // 1. Fetch live active property/properties
     const hotels = await prisma.hotel.findMany({
         where: hotelId ? { id: hotelId } : { status: "Active" },
-        select: { id: true, name: true, gstin: true, state: true },
+        select: { id: true, name: true, gstin: true, state: true, timezone: true },
     });
 
     const hotelIds = hotels.map((h) => h.id);
+    const primaryTz = hotels[0]?.timezone || DEFAULT_HOTEL_TIMEZONE;
 
-    // 2. Fetch real Invoices with line items
+    // Determine period boundaries
+    let startDate: Date;
+    let endDate: Date;
+
+    if (fromParam && toParam) {
+        startDate = parseHotelBusinessDate(fromParam, primaryTz);
+        endDate = parseHotelBusinessDate(toParam, primaryTz);
+        endDate.setUTCHours(23, 59, 59, 999);
+    } else if (monthParam) {
+        const [yr, mo] = monthParam.split("-").map(Number);
+        startDate = parseHotelBusinessDate(`${yr}-${String(mo).padStart(2, "0")}-01`, primaryTz);
+        const lastDay = new Date(yr, mo, 0).getDate();
+        endDate = parseHotelBusinessDate(`${yr}-${String(mo).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`, primaryTz);
+        endDate.setUTCHours(23, 59, 59, 999);
+    } else if (fyParam) {
+        const [startYearStr] = fyParam.split("-");
+        const startYear = parseInt(startYearStr, 10) || new Date().getFullYear();
+        startDate = parseHotelBusinessDate(`${startYear}-04-01`, primaryTz);
+        endDate = parseHotelBusinessDate(`${startYear + 1}-03-31`, primaryTz);
+        endDate.setUTCHours(23, 59, 59, 999);
+    } else {
+        // Default to current month
+        const now = new Date();
+        const nowStr = formatHotelBusinessDate(now, primaryTz);
+        const [yr, mo] = nowStr.split("-").map(Number);
+        startDate = parseHotelBusinessDate(`${yr}-${String(mo).padStart(2, "0")}-01`, primaryTz);
+        const lastDay = new Date(yr, mo, 0).getDate();
+        endDate = parseHotelBusinessDate(`${yr}-${String(mo).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`, primaryTz);
+        endDate.setUTCHours(23, 59, 59, 999);
+    }
+
+    // 2. Fetch real Invoices with line items in the filtered period
     const invoices = await prisma.invoice.findMany({
         where: {
             hotelId: { in: hotelIds },
+            createdAt: { gte: startDate, lte: endDate },
             deletedAt: null,
             status: { not: "Cancelled" },
         },
@@ -30,11 +71,11 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: "desc" },
     });
 
-    let totalTaxableValue = 0;
-    let totalCGST = 0;
-    let totalSGST = 0;
-    let totalIGST = 0;
-    let totalGSTLiability = 0;
+    let totalTaxableValue = new Prisma.Decimal(0);
+    let totalCGST = new Prisma.Decimal(0);
+    let totalSGST = new Prisma.Decimal(0);
+    let totalIGST = new Prisma.Decimal(0);
+    let totalGSTLiability = new Prisma.Decimal(0);
 
     const b2bSupplies: Array<{
         invoiceNumber: string;
@@ -60,83 +101,115 @@ export async function GET(request: NextRequest) {
         grandTotal: number;
     }> = [];
 
-    const departmentGST: Record<string, { taxable: number; cgst: number; sgst: number; igst: number; totalTax: number }> = {
-        Room: { taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
-        Food: { taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
-        Amenity: { taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
-        Event: { taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
-        Other: { taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
+    const departmentGST: Record<string, {
+        taxable: Prisma.Decimal;
+        cgst: Prisma.Decimal;
+        sgst: Prisma.Decimal;
+        igst: Prisma.Decimal;
+        totalTax: Prisma.Decimal;
+    }> = {
+        Room: { taxable: new Prisma.Decimal(0), cgst: new Prisma.Decimal(0), sgst: new Prisma.Decimal(0), igst: new Prisma.Decimal(0), totalTax: new Prisma.Decimal(0) },
+        Food: { taxable: new Prisma.Decimal(0), cgst: new Prisma.Decimal(0), sgst: new Prisma.Decimal(0), igst: new Prisma.Decimal(0), totalTax: new Prisma.Decimal(0) },
+        Amenity: { taxable: new Prisma.Decimal(0), cgst: new Prisma.Decimal(0), sgst: new Prisma.Decimal(0), igst: new Prisma.Decimal(0), totalTax: new Prisma.Decimal(0) },
+        Event: { taxable: new Prisma.Decimal(0), cgst: new Prisma.Decimal(0), sgst: new Prisma.Decimal(0), igst: new Prisma.Decimal(0), totalTax: new Prisma.Decimal(0) },
+        Other: { taxable: new Prisma.Decimal(0), cgst: new Prisma.Decimal(0), sgst: new Prisma.Decimal(0), igst: new Prisma.Decimal(0), totalTax: new Prisma.Decimal(0) },
     };
 
     for (const inv of invoices) {
-        const taxable = Number(inv.subTotal);
-        const invCGST = Number(inv.cgst);
-        const invSGST = Number(inv.sgst);
-        const invIGST = Number(inv.igst);
-        const invTax = Number(inv.totalTax);
-        const invGrandTotal = Number(inv.grandTotal);
+        const taxable = new Prisma.Decimal(inv.subTotal);
+        const invCGST = new Prisma.Decimal(inv.cgst);
+        const invSGST = new Prisma.Decimal(inv.sgst);
+        const invIGST = new Prisma.Decimal(inv.igst);
+        const invTax = new Prisma.Decimal(inv.totalTax);
+        const invGrandTotal = new Prisma.Decimal(inv.grandTotal);
 
-        totalTaxableValue += taxable;
-        totalCGST += invCGST;
-        totalSGST += invSGST;
-        totalIGST += invIGST;
-        totalGSTLiability += invTax;
+        totalTaxableValue = totalTaxableValue.plus(taxable);
+        totalCGST = totalCGST.plus(invCGST);
+        totalSGST = totalSGST.plus(invSGST);
+        totalIGST = totalIGST.plus(invIGST);
+        totalGSTLiability = totalGSTLiability.plus(invTax);
 
         const isB2B = inv.invoiceFormat === "B2B" || Boolean(inv.billedToGstin && inv.billedToGstin.trim());
+        const invDateStr = formatHotelBusinessDate(inv.createdAt, primaryTz);
 
         if (isB2B) {
             b2bSupplies.push({
                 invoiceNumber: inv.invoiceNumber,
-                invoiceDate: inv.createdAt.toISOString().slice(0, 10),
+                invoiceDate: invDateStr,
                 billedToName: inv.billedToName,
                 billedToGstin: inv.billedToGstin || "N/A",
-                taxableValue: Math.round(taxable),
-                cgst: Math.round(invCGST),
-                sgst: Math.round(invSGST),
-                igst: Math.round(invIGST),
-                totalTax: Math.round(invTax),
-                grandTotal: Math.round(invGrandTotal),
+                taxableValue: taxable.toNumber(),
+                cgst: invCGST.toNumber(),
+                sgst: invSGST.toNumber(),
+                igst: invIGST.toNumber(),
+                totalTax: invTax.toNumber(),
+                grandTotal: invGrandTotal.toNumber(),
             });
         } else {
             b2cSupplies.push({
                 invoiceNumber: inv.invoiceNumber,
-                invoiceDate: inv.createdAt.toISOString().slice(0, 10),
-                taxableValue: Math.round(taxable),
-                cgst: Math.round(invCGST),
-                sgst: Math.round(invSGST),
-                igst: Math.round(invIGST),
-                totalTax: Math.round(invTax),
-                grandTotal: Math.round(invGrandTotal),
+                invoiceDate: invDateStr,
+                taxableValue: taxable.toNumber(),
+                cgst: invCGST.toNumber(),
+                sgst: invSGST.toNumber(),
+                igst: invIGST.toNumber(),
+                totalTax: invTax.toNumber(),
+                grandTotal: invGrandTotal.toNumber(),
             });
         }
 
-        // Department item breakdown
+        // Department line items breakdown
         for (const item of inv.items) {
             const deptKey = item.itemType in departmentGST ? item.itemType : "Other";
-            const itemTaxable = Number(item.lineTotal) - Number(item.taxAmount);
-            departmentGST[deptKey].taxable += itemTaxable;
-            departmentGST[deptKey].cgst += Number(item.cgstAmount ?? 0);
-            departmentGST[deptKey].sgst += Number(item.sgstAmount ?? 0);
-            departmentGST[deptKey].igst += Number(item.igstAmount ?? 0);
-            departmentGST[deptKey].totalTax += Number(item.taxAmount);
+            const itemTax = new Prisma.Decimal(item.taxAmount);
+            const itemTaxable = new Prisma.Decimal(item.lineTotal).minus(itemTax);
+
+            departmentGST[deptKey].taxable = departmentGST[deptKey].taxable.plus(itemTaxable);
+            departmentGST[deptKey].cgst = departmentGST[deptKey].cgst.plus(new Prisma.Decimal(item.cgstAmount ?? 0));
+            departmentGST[deptKey].sgst = departmentGST[deptKey].sgst.plus(new Prisma.Decimal(item.sgstAmount ?? 0));
+            departmentGST[deptKey].igst = departmentGST[deptKey].igst.plus(new Prisma.Decimal(item.igstAmount ?? 0));
+            departmentGST[deptKey].totalTax = departmentGST[deptKey].totalTax.plus(itemTax);
         }
     }
 
-    const inputTaxCredit = 0; // Estimated or configured from purchase invoices
-    const netGSTPayable = Math.max(0, totalGSTLiability - inputTaxCredit);
+    // Input Tax Credit (ITC) - Clearly marked as Configured Purchase ITC
+    const configuredITC = new Prisma.Decimal(0); // Explicitly 0.00 until purchase vouchers are integrated
+    const netGSTEstimate = totalGSTLiability.minus(configuredITC);
+
+    const serializedDeptBreakdown = Object.fromEntries(
+        Object.entries(departmentGST).map(([k, v]) => [
+            k,
+            {
+                taxable: v.taxable.toNumber(),
+                cgst: v.cgst.toNumber(),
+                sgst: v.sgst.toNumber(),
+                igst: v.igst.toNumber(),
+                totalTax: v.totalTax.toNumber(),
+            },
+        ])
+    );
 
     return NextResponse.json({
-        summary: {
-            totalTaxableValue: Math.round(totalTaxableValue),
-            totalGSTLiability: Math.round(totalGSTLiability),
-            cgst: Math.round(totalCGST),
-            sgst: Math.round(totalSGST),
-            igst: Math.round(totalIGST),
-            inputTaxCredit: Math.round(inputTaxCredit),
-            netGSTPayable: Math.round(netGSTPayable),
+        reportTitle: "GSTR-1 Statutory Return & GST Liability Summary",
+        period: {
+            from: formatHotelBusinessDate(startDate, primaryTz),
+            to: formatHotelBusinessDate(endDate, primaryTz),
         },
-        departmentBreakdown: departmentGST,
+        summary: {
+            totalInvoicesCount: invoices.length,
+            totalTaxableValue: totalTaxableValue.toNumber(),
+            outputGSTLiability: totalGSTLiability.toNumber(),
+            totalCGST: totalCGST.toNumber(),
+            totalSGST: totalSGST.toNumber(),
+            totalIGST: totalIGST.toNumber(),
+            configuredInputTaxCredit: configuredITC.toNumber(),
+            netGSTLiabilityPayable: netGSTEstimate.toNumber(),
+            itcAccountingMode: "Purchase Invoices ITC (Configured / Recorded Vouchers)",
+        },
+        departmentBreakdown: serializedDeptBreakdown,
         gstr1: {
+            b2bCount: b2bSupplies.length,
+            b2cCount: b2cSupplies.length,
             b2bSupplies,
             b2cSupplies,
         },

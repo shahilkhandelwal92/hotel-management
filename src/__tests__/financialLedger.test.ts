@@ -13,10 +13,10 @@ describe("P1-5: Financial Ledger & Accounting Invariants", () => {
         );
 
         const calculatedSubTotal = 25000 * 3 + 8500 * 1 + 3000 * 2; // 75000 + 8500 + 6000 = 89500
-        expect(invoice.subTotal).toBe(calculatedSubTotal);
+        expect(invoice.subTotal.toNumber()).toBe(calculatedSubTotal);
 
-        const expectedGrandTotal = invoice.subTotal + invoice.totalTax + (invoice.roundOff || 0);
-        expect(invoice.grandTotal).toBe(expectedGrandTotal);
+        const expectedGrandTotal = invoice.subTotal.plus(invoice.totalTax).plus(invoice.roundOff || 0);
+        expect(invoice.grandTotal.toNumber()).toBe(expectedGrandTotal.toNumber());
     });
 
     it("enforces Folio Balance Invariant: Balance = Sum(Charges) - Sum(Payments)", () => {

@@ -1,73 +1,111 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { resolveTenantContext } from "@/lib/tenantContext";
+import { requirePermission, PERMISSIONS } from "@/lib/permissions";
+import { logAudit } from "@/lib/audit";
 
 type Params = Promise<{ id: string }>;
 
-// Middleware equivalent to verify access
-async function verifyAccountingAccess() {
-    const user = await getSession();
-    if (!user) {
-        return { error: "Unauthorized", status: 401 };
-    }
-
-    const isAccountingOrSuperAdmin = user.roles?.some((r: any) =>
-        r.role.name === "SUPER_ADMIN" || r.role.name === "ACCOUNTING"
-    );
-
-    if (!isAccountingOrSuperAdmin) {
-        return { error: "Forbidden: Requires Accounting Privileges", status: 403 };
-    }
-
-    return { user: user as any };
-}
-
 // PUT /api/tax-config/[id]
-export async function PUT(req: Request, { params }: { params: Params }) {
+export async function PUT(req: NextRequest, { params }: { params: Params }) {
+    const auth = await requirePermission(req, PERMISSIONS.TAX_CONFIG_MANAGE);
+    if (auth instanceof NextResponse) return auth;
+
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
+
     try {
         const { id } = await params;
-        const access = await verifyAccountingAccess();
-        if (access.error) return NextResponse.json({ error: access.error }, { status: access.status });
+
+        // Verify configuration belongs to user's hotel property (IDOR prevention)
+        const existing = await prisma.taxConfiguration.findFirst({
+            where: {
+                id,
+                ...(tenant.isSuperAdmin ? {} : { hotelId: tenant.hotelId }),
+            },
+        });
+        if (!existing) return NextResponse.json({ error: "Tax configuration not found for this property" }, { status: 404 });
 
         const body = await req.json();
+        const {
+            taxType,
+            taxRegistrationNumber,
+            companyState,
+            roomTaxPct,
+            restaurantTaxPct,
+            barTaxPct,
+            amenityTaxPct,
+            tdsPct,
+            isTaxApplicable,
+        } = body;
 
-        // Verify ownership/hotel mapping here if it was strictly needed
-        // but since SUPER_ADMIN & ACCOUNTING are the ones accessing, we trust the ID
-
-        const config = await (prisma as any).taxConfiguration.update({
+        const config = await prisma.taxConfiguration.update({
             where: { id },
-            data: body
+            data: {
+                ...(taxType !== undefined && { taxType }),
+                ...(taxRegistrationNumber !== undefined && { taxRegistrationNumber: taxRegistrationNumber?.trim() || null }),
+                ...(companyState !== undefined && { companyState: companyState?.trim() || null }),
+                ...(roomTaxPct !== undefined && { roomTaxPct: Number(roomTaxPct) }),
+                ...(restaurantTaxPct !== undefined && { restaurantTaxPct: Number(restaurantTaxPct) }),
+                ...(barTaxPct !== undefined && { barTaxPct: Number(barTaxPct) }),
+                ...(amenityTaxPct !== undefined && { amenityTaxPct: Number(amenityTaxPct) }),
+                ...(tdsPct !== undefined && { tdsPct: Number(tdsPct) }),
+                ...(isTaxApplicable !== undefined && { isTaxApplicable: Boolean(isTaxApplicable) }),
+            },
+        });
+
+        await logAudit({
+            hotelId: existing.hotelId,
+            userId: tenant.userId,
+            module: "NightAudit",
+            action: "UPDATE",
+            entityId: config.id,
+            oldValue: { financialYear: existing.financialYear, taxType: existing.taxType },
+            newValue: { financialYear: config.financialYear, taxType: config.taxType },
+            req,
         });
 
         return NextResponse.json(config);
     } catch (error: any) {
-        if (error.code === 'P2025') {
-            return NextResponse.json({ error: "Tax configuration not found" }, { status: 404 });
-        }
-        if (error.code === 'P2002') {
-            return NextResponse.json({ error: "A configuration for this financial year already exists for this hotel." }, { status: 409 });
-        }
         console.error("Error updating tax configuration:", error);
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
 
 // DELETE /api/tax-config/[id]
-export async function DELETE(req: Request, { params }: { params: Params }) {
+export async function DELETE(req: NextRequest, { params }: { params: Params }) {
+    const auth = await requirePermission(req, PERMISSIONS.TAX_CONFIG_MANAGE);
+    if (auth instanceof NextResponse) return auth;
+
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
+
     try {
         const { id } = await params;
-        const access = await verifyAccountingAccess();
-        if (access.error) return NextResponse.json({ error: access.error }, { status: access.status });
 
-        await (prisma as any).taxConfiguration.delete({
-            where: { id }
+        // Verify configuration belongs to user's hotel property (IDOR prevention)
+        const existing = await prisma.taxConfiguration.findFirst({
+            where: {
+                id,
+                ...(tenant.isSuperAdmin ? {} : { hotelId: tenant.hotelId }),
+            },
+        });
+        if (!existing) return NextResponse.json({ error: "Tax configuration not found for this property" }, { status: 404 });
+
+        await prisma.taxConfiguration.delete({ where: { id } });
+
+        await logAudit({
+            hotelId: existing.hotelId,
+            userId: tenant.userId,
+            module: "NightAudit",
+            action: "DELETE",
+            entityId: id,
+            oldValue: { financialYear: existing.financialYear },
+            req,
         });
 
         return NextResponse.json({ success: true, message: "Tax configuration deleted" });
     } catch (error: any) {
-        if (error.code === 'P2025') {
-            return NextResponse.json({ error: "Tax configuration not found" }, { status: 404 });
-        }
         console.error("Error deleting tax configuration:", error);
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }

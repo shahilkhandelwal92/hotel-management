@@ -26,10 +26,6 @@ export default function LeadsPipelinePage() {
     const [contactMobile, setContactMobile] = useState("");
     const [estimatedValue, setEstimatedValue] = useState("");
 
-    useEffect(() => {
-        fetchLeads();
-    }, []);
-
     const fetchLeads = async () => {
         setLoading(true);
         const res = await fetch("/api/leads");
@@ -39,6 +35,10 @@ export default function LeadsPipelinePage() {
         }
         setLoading(false);
     };
+
+    useEffect(() => {
+        fetchLeads();
+    }, []);
 
     const handleAddLead = async (e: React.FormEvent) => {
         e.preventDefault();

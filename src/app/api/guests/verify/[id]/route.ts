@@ -1,20 +1,34 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
-import { createPortalToken } from '@/lib/portalAuth';
-import { reservationPortalSubject } from '@/lib/guestStay';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers";
+import { createPortalToken } from "@/lib/portalAuth";
+import { reservationPortalSubject } from "@/lib/guestStay";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 type Params = Promise<{ id: string }>;
 
-export async function GET(_req: Request, { params }: { params: Params }) {
+export async function GET(req: NextRequest, { params }: { params: Params }) {
     try {
+        const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "127.0.0.1";
+        const rateLimit = await checkRateLimit(`guest_verify:${ip}`, { maxAttempts: 10, windowSeconds: 300 });
+        if (!rateLimit.allowed) {
+            return NextResponse.json({
+                error: `Too many verification attempts. Please wait ${Math.ceil(rateLimit.retryAfterSeconds / 60)} minutes.`,
+            }, { status: 429 });
+        }
+
         const { id } = await params;
+        if (!id || typeof id !== "string" || id.trim().length < 3) {
+            return NextResponse.json({ error: "Invalid booking reference or guest ID" }, { status: 400 });
+        }
+
+        const cleanId = id.trim();
 
         const reservation = await prisma.reservation.findFirst({
             where: {
-                bookingRef: id,
+                bookingRef: cleanId,
                 deletedAt: null,
-                status: { notIn: ['Cancelled', 'NoShow'] },
+                status: { notIn: ["Cancelled", "NoShow"] },
             },
             select: {
                 id: true,
@@ -39,24 +53,24 @@ export async function GET(_req: Request, { params }: { params: Params }) {
 
         if (reservation) {
             const token = await createPortalToken({
-                type: 'guest',
+                type: "guest",
                 subjectId: reservationPortalSubject(reservation.id),
             });
             const cookieStore = await cookies();
-            cookieStore.set('guest_session', token, {
+            cookieStore.set("guest_session", token, {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'lax',
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "lax",
                 maxAge: 60 * 60 * 12,
-                path: '/',
+                path: "/",
             });
 
-            return NextResponse.json({ mode: 'stay', stay: reservation });
+            return NextResponse.json({ mode: "stay", stay: reservation });
         }
 
         const guest = await prisma.corporateGuest.findFirst({
             where: {
-                OR: [{ id }, { qrCode: id }],
+                OR: [{ id: cleanId }, { qrCode: cleanId }],
             },
             select: {
                 id: true,
@@ -74,7 +88,7 @@ export async function GET(_req: Request, { params }: { params: Params }) {
                                 swiggyLink: true,
                             },
                         },
-                    }
+                    },
                 },
                 requests: {
                     select: {
@@ -85,26 +99,26 @@ export async function GET(_req: Request, { params }: { params: Params }) {
                         status: true,
                         createdAt: true,
                     },
-                    orderBy: { createdAt: 'desc' }
-                }
-            }
+                    orderBy: { createdAt: "desc" },
+                },
+            },
         });
 
-        if (!guest) return NextResponse.json({ error: 'Guest not found' }, { status: 404 });
+        if (!guest) return NextResponse.json({ error: "Guest not found" }, { status: 404 });
 
-        const token = await createPortalToken({ type: 'guest', subjectId: guest.id });
+        const token = await createPortalToken({ type: "guest", subjectId: guest.id });
         const cookieStore = await cookies();
-        cookieStore.set('guest_session', token, {
+        cookieStore.set("guest_session", token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
             maxAge: 60 * 60 * 12,
-            path: '/',
+            path: "/",
         });
 
-        return NextResponse.json({ mode: 'event', guest });
+        return NextResponse.json({ mode: "event", guest });
     } catch (err) {
-        console.error('GET /api/guests/verify error:', err);
-        return NextResponse.json({ error: 'Failed to verify guest' }, { status: 500 });
+        console.error("GET /api/guests/verify error:", err);
+        return NextResponse.json({ error: "Failed to verify guest" }, { status: 500 });
     }
 }

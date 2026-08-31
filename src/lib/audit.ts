@@ -32,6 +32,7 @@ export type AuditAction =
     | "CANCEL"
     | "LOGIN"
     | "LOGOUT"
+    | "NIGHT_AUDIT_RUN"
     | "NIGHT_AUDIT_CLOSE"
     | "NIGHT_AUDIT_REOPEN"
     | "PAYROLL_PROCESS"
@@ -43,6 +44,7 @@ export type AuditAction =
     | "OVERBOOK_ATTEMPT"
     | "DENIED_UNKNOWN_CREDENTIAL"
     | "DENIED_ENTRY"
+    | "VERIFY_ACCESS_CODE"
     | "EXPORT_DATA";
 
 export type AuditModule =
@@ -55,12 +57,17 @@ export type AuditModule =
     | "User"
     | "GuestCRMProfile"
     | "HousekeepingTask"
+    | "Housekeeping"
     | "NightAudit"
     | "RatePlan"
     | "SaasSubscription"
     | "Auth"
     | "AccessCredential"
     | "AccessLog"
+    | "Corporate"
+    | "Amenity"
+    | "Events"
+    | "POS"
     | "Export";
 
 export interface LogAuditParams {

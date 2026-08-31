@@ -10,7 +10,7 @@ import {
 import { generateNextInvoiceNumber } from "@/lib/invoiceSequence";
 import { resolveTenantContext } from "@/lib/tenantContext";
 import { requirePermission, PERMISSIONS } from "@/lib/permissions";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 // ── GET (List Invoices) ──────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Missing required fields: billedToName, items" }, { status: 400 });
     }
     if (billedToGstin && !isValidGstin(billedToGstin)) {
-        return NextResponse.json({ error: "Invalid GSTIN" }, { status: 400 });
+        return NextResponse.json({ error: "Invalid GSTIN format" }, { status: 400 });
     }
 
     // ── Night Audit Lock Check ──────────────────────────────────
@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
             module: "Invoice",
             action: "CREATE",
             entityId: invoice.id,
-            newValue: { invoiceNumber: invoice.invoiceNumber, grandTotal: invoice.grandTotal, invoiceFormat },
+            newValue: { invoiceNumber: invoice.invoiceNumber, grandTotal: invoice.grandTotal.toString(), invoiceFormat },
             req,
         });
 
@@ -181,42 +181,92 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// ── PUT (Update Status / Soft Delete) ─────────────────────────
+// ── PUT (Update Status / Cancellation) ────────────────────────
 export async function PUT(req: NextRequest) {
-    const auth = await requirePermission(req, PERMISSIONS.INVOICE_UPDATE);
-    if (auth instanceof NextResponse) return auth;
-
     const tenant = await resolveTenantContext(req);
     if (tenant instanceof NextResponse) return tenant;
 
     const hotelId = tenant.hotelId;
-    const { id, status, action } = await req.json();
+    const body = await req.json();
+    const { id, status, action, notes } = body;
 
     if (!id) return NextResponse.json({ error: "Invoice id required" }, { status: 400 });
 
     const invoice = await prisma.invoice.findFirst({
         where: { id, ...(hotelId ? { hotelId } : {}), deletedAt: null },
+        include: { payments: true },
     });
     if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
 
+    // Handle cancellation
     if (action === "cancel") {
+        const cancelAuth = await requirePermission(req, PERMISSIONS.INVOICE_CANCEL);
+        if (cancelAuth instanceof NextResponse) return cancelAuth;
+
         if (invoice.status === "Paid") {
-            return NextResponse.json({ error: "Paid invoices cannot be cancelled. Issue a Credit Note instead." }, { status: 422 });
+            return NextResponse.json({ error: "Paid invoices cannot be cancelled directly. Issue a Credit Note instead." }, { status: 422 });
         }
+        if (invoice.status === "Cancelled") {
+            return NextResponse.json({ error: "Invoice is already cancelled" }, { status: 422 });
+        }
+
         const updated = await prisma.invoice.update({
             where: { id },
-            data: { status: "Cancelled" },
+            data: { status: "Cancelled", notes: notes ? `${invoice.notes ? invoice.notes + " | " : ""}Cancelled: ${notes}` : invoice.notes },
         });
+
+        await logAudit({
+            hotelId: invoice.hotelId,
+            userId: tenant.userId,
+            module: "Invoice",
+            action: "CANCEL",
+            entityId: invoice.id,
+            oldValue: { status: invoice.status },
+            newValue: { status: "Cancelled", notes },
+            req,
+        });
+
         return NextResponse.json({ invoice: updated });
     }
 
+    // Direct status modification: do NOT allow setting 'Paid' without payment settlement
     if (status) {
+        const updateAuth = await requirePermission(req, PERMISSIONS.INVOICE_UPDATE);
+        if (updateAuth instanceof NextResponse) return updateAuth;
+
+        if (status === "Paid" && invoice.status !== "Paid") {
+            // Check if actual payments cover the grandTotal
+            const totalPaid = invoice.payments.reduce((sum, p) => sum.plus(new Prisma.Decimal(p.amount)), new Prisma.Decimal(0));
+            if (totalPaid.lessThan(invoice.grandTotal)) {
+                return NextResponse.json({
+                    error: `Cannot mark invoice as Paid without recording payment settlement. Paid: ${totalPaid.toString()}, Grand Total: ${invoice.grandTotal.toString()}.`,
+                }, { status: 422 });
+            }
+        }
+
+        const validStatuses = ["Unpaid", "Partial", "Paid", "Draft"];
+        if (!validStatuses.includes(status)) {
+            return NextResponse.json({ error: `Invalid status '${status}'. Valid statuses: ${validStatuses.join(", ")}` }, { status: 400 });
+        }
+
         const updated = await prisma.invoice.update({
             where: { id },
             data: { status },
         });
+
+        await logAudit({
+            hotelId: invoice.hotelId,
+            userId: tenant.userId,
+            module: "Invoice",
+            action: "UPDATE",
+            entityId: invoice.id,
+            oldValue: { status: invoice.status },
+            newValue: { status: updated.status },
+            req,
+        });
+
         return NextResponse.json({ invoice: updated });
     }
 
-    return NextResponse.json({ error: "No update action specified" }, { status: 400 });
+    return NextResponse.json({ error: "No update action or valid status specified" }, { status: 400 });
 }

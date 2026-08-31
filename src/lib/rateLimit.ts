@@ -128,3 +128,17 @@ export const RATE_LIMIT_TIERS = {
     REPORTS_EXPORT: { maxRequests: 10, windowMs: 60 * 1000 }, // 10 exports per minute
     GENERAL_API: { maxRequests: 120, windowMs: 60 * 1000 },   // 120 requests per minute
 } as const;
+
+export async function checkRateLimit(
+    key: string,
+    options: { maxAttempts: number; windowSeconds: number }
+): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
+    const result = await rateLimiter.check(key, {
+        maxRequests: options.maxAttempts,
+        windowMs: options.windowSeconds * 1000,
+    });
+    return {
+        allowed: result.allowed,
+        retryAfterSeconds: Math.ceil(result.resetMs / 1000),
+    };
+}

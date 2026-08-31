@@ -4,6 +4,7 @@ import { requirePermission, PERMISSIONS } from "@/lib/permissions";
 import { resolveTenantContext } from "@/lib/tenantContext";
 import { calculateReservationPrice } from "@/domains/pricing/pricingService";
 import { formatHotelBusinessDate } from "@/lib/timezone";
+import { Prisma } from "@prisma/client";
 
 // Helper to expand dates between checkIn and checkOut
 function getDateRange(start: Date, end: Date, timeZone?: string): Date[] {
@@ -237,11 +238,11 @@ export async function POST(req: NextRequest) {
                     children: childCount,
                     checkIn: checkInDate,
                     checkOut: checkOutDate,
-                    baseAmount: pricing.baseAmount,
-                    taxAmount: pricing.taxAmount,
-                    totalAmount: pricing.totalAmount,
-                    advanceDeposit: deposit,
-                    balanceDue,
+                    baseAmount: pricing.decimalBaseAmount,
+                    taxAmount: pricing.decimalTaxAmount,
+                    totalAmount: pricing.decimalTotalAmount,
+                    advanceDeposit: new Prisma.Decimal(deposit),
+                    balanceDue: pricing.decimalTotalAmount.minus(new Prisma.Decimal(deposit)),
                     includesBreakfast: includesBreakfast || false,
                     includesDinner: includesDinner || false,
                     specialRequests,
@@ -270,7 +271,7 @@ export async function POST(req: NextRequest) {
                     hotelId,
                     reservationId: newRes.id,
                     folioType: "Room",
-                    balance: pricing.totalAmount,
+                    balance: pricing.decimalTotalAmount,
                     status: "Open",
                 },
             });
@@ -281,26 +282,27 @@ export async function POST(req: NextRequest) {
                     folioId: folio.id,
                     type: "Charge",
                     description: `Room Tariff (${pricing.nights} nights) - ${bookingRef}`,
-                    amount: pricing.totalAmount,
+                    amount: pricing.decimalTotalAmount,
                     postedById: auth.userId,
                 },
             });
 
             // 5. If advance deposit paid, post credit transaction
             if (deposit > 0) {
+                const depositDec = new Prisma.Decimal(deposit);
                 await tx.folioTransaction.create({
                     data: {
                         folioId: folio.id,
                         type: "Payment",
                         description: `Advance Deposit Received - ${bookingRef}`,
-                        amount: -deposit,
+                        amount: depositDec.negated(),
                         postedById: auth.userId,
                     },
                 });
 
                 await tx.folio.update({
                     where: { id: folio.id },
-                    data: { balance: balanceDue },
+                    data: { balance: pricing.decimalTotalAmount.minus(depositDec) },
                 });
             }
 
@@ -315,6 +317,14 @@ export async function POST(req: NextRequest) {
                 {
                     error: `Room is already booked on: ${conflictDates.join(", ")}. Please select a different room or dates.`,
                     conflictDates,
+                },
+                { status: 409 }
+            );
+        }
+        if (err.code === "P2002" || (typeof err === "object" && err !== null && "code" in err && err.code === "P2002")) {
+            return NextResponse.json(
+                {
+                    error: "Room is already booked for one or more requested stay dates. Please choose another room or date range.",
                 },
                 { status: 409 }
             );

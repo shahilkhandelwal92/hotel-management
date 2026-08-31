@@ -24,6 +24,10 @@ model Hotel {
   status    String @default("Active") // Active, Inactive
   timezone  String @default("Asia/Kolkata") // Hotel operational timezone
 
+  latitude       Float?   // Hotel GPS latitude for geofenced attendance
+  longitude      Float?   // Hotel GPS longitude for geofenced attendance
+  geofenceRadius Float?   @default(100) // Allowed check-in radius in metres
+
   hasInHouseRestaurant Boolean @default(true)
   zomatoLink           String?
   swiggyLink           String?
@@ -336,7 +340,8 @@ model MenuItem {
   description String?
   spiceLevel  String?
 
-  posOrderItems PosOrderItem[] @relation("PosMenuItems")
+  posOrderItems     PosOrderItem[]     @relation("PosMenuItems")
+  recipeIngredients RecipeIngredient[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -354,10 +359,28 @@ model GroceryStock {
   unit      String // kg, ltr, pcs, pkt
   minAlert  Float // Trigger low stock alert if below this
 
-  movements GroceryStockMovement[]
+  movements         GroceryStockMovement[]
+  recipeIngredients RecipeIngredient[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Recipe Ingredients mapping MenuItem -> GroceryStock
+model RecipeIngredient {
+  id          String       @id @default(uuid())
+  menuItemId  String
+  menuItem    MenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  stockItemId String
+  stockItem   GroceryStock @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  quantity    Float        // Quantity of ingredient required per 1 unit of menuItem
+  unit        String       // kg, ltr, g, ml, pcs
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([menuItemId, stockItemId])
+  @@index([menuItemId])
+  @@index([stockItemId])
 }
 
 // Room Service & Event Food Orders

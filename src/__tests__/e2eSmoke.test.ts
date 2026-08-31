@@ -12,6 +12,7 @@
 
 import { calculateReservationPrice } from "../domains/pricing/pricingService";
 import { calculateInvoiceTotals } from "../lib/invoice";
+import { Prisma } from "@prisma/client";
 
 describe("End-to-End Hotel Operations Smoke Workflow", () => {
     type StayContext = {
@@ -23,11 +24,11 @@ describe("End-to-End Hotel Operations Smoke Workflow", () => {
         checkOut: string;
         roomStatus: "Vacant" | "Occupied" | "Dirty" | "Clean";
         digitalKeyStatus: "Inactive" | "Active" | "Revoked" | "Expired";
-        folioBalance: number;
-        folioCharges: Array<{ desc: string; amount: number }>;
-        folioPayments: Array<{ mode: string; amount: number }>;
+        folioBalance: Prisma.Decimal;
+        folioCharges: Array<{ desc: string; amount: Prisma.Decimal }>;
+        folioPayments: Array<{ mode: string; amount: Prisma.Decimal }>;
         invoiceGenerated: boolean;
-        invoiceGrandTotal: number;
+        invoiceGrandTotal: Prisma.Decimal;
         nightAuditClosed: boolean;
     };
 
@@ -40,11 +41,11 @@ describe("End-to-End Hotel Operations Smoke Workflow", () => {
         checkOut: "2026-09-03",
         roomStatus: "Vacant",
         digitalKeyStatus: "Inactive",
-        folioBalance: 0,
+        folioBalance: new Prisma.Decimal(0),
         folioCharges: [],
         folioPayments: [],
         invoiceGenerated: false,
-        invoiceGrandTotal: 0,
+        invoiceGrandTotal: new Prisma.Decimal(0),
         nightAuditClosed: false,
     };
 
@@ -64,8 +65,8 @@ describe("End-to-End Hotel Operations Smoke Workflow", () => {
         expect(pricing.totalAmount).toBe(13440);
 
         // Add opening room charge to folio
-        stay.folioCharges.push({ desc: "Room Tariff - 2 Nights", amount: pricing.totalAmount });
-        stay.folioBalance += pricing.totalAmount;
+        stay.folioCharges.push({ desc: "Room Tariff - 2 Nights", amount: pricing.decimalTotalAmount });
+        stay.folioBalance = stay.folioBalance.plus(pricing.decimalTotalAmount);
     });
 
     // Step 2: Contactless Check-In
@@ -82,15 +83,15 @@ describe("End-to-End Hotel Operations Smoke Workflow", () => {
 
     // Step 3: In-Stay POS Dining & Amenity Bookings
     it("Step 3: Posts room-service dining and spa charges to guest folio", () => {
-        const diningCharge = 1450; // Paneer Tikka + Butter Naan + Beverages
-        const spaCharge = 2200; // Ayurvedic Massage
+        const diningCharge = new Prisma.Decimal("1450.00"); // Paneer Tikka + Butter Naan + Beverages
+        const spaCharge = new Prisma.Decimal("2200.00"); // Ayurvedic Massage
 
         stay.folioCharges.push({ desc: "F&B Room Service KOT-401", amount: diningCharge });
         stay.folioCharges.push({ desc: "Spa Wellness Treatment", amount: spaCharge });
-        stay.folioBalance += diningCharge + spaCharge;
+        stay.folioBalance = stay.folioBalance.plus(diningCharge).plus(spaCharge);
 
         // Total balance = 13440 + 1450 + 2200 = 17090
-        expect(stay.folioBalance).toBe(17090);
+        expect(stay.folioBalance.toNumber()).toBe(17090);
         expect(stay.folioCharges).toHaveLength(3);
     });
 
@@ -98,9 +99,9 @@ describe("End-to-End Hotel Operations Smoke Workflow", () => {
     it("Step 4: Settles folio via UPI payment and generates official GST Tax Invoice", () => {
         const paymentAmount = stay.folioBalance;
         stay.folioPayments.push({ mode: "UPI (PhonePe)", amount: paymentAmount });
-        stay.folioBalance -= paymentAmount;
+        stay.folioBalance = stay.folioBalance.minus(paymentAmount);
 
-        expect(stay.folioBalance).toBe(0);
+        expect(stay.folioBalance.toNumber()).toBe(0);
 
         // Compute GST Invoice
         const invoiceData = calculateInvoiceTotals(
@@ -116,14 +117,14 @@ describe("End-to-End Hotel Operations Smoke Workflow", () => {
         stay.invoiceGrandTotal = invoiceData.grandTotal;
 
         expect(stay.invoiceGenerated).toBe(true);
-        expect(invoiceData.cgst).toBeGreaterThan(0);
-        expect(invoiceData.sgst).toBeGreaterThan(0);
-        expect(invoiceData.igst).toBe(0); // Intra-state Maharashtra
+        expect(invoiceData.cgst.toNumber()).toBeGreaterThan(0);
+        expect(invoiceData.sgst.toNumber()).toBeGreaterThan(0);
+        expect(invoiceData.igst.toNumber()).toBe(0); // Intra-state Maharashtra
     });
 
     // Step 5: Check-Out & Housekeeping Turnover
     it("Step 5: Checks out guest, revokes digital key, and releases room to Dirty for Housekeeping", () => {
-        expect(stay.folioBalance).toBe(0); // Zero balance prerequisite
+        expect(stay.folioBalance.toNumber()).toBe(0); // Zero balance prerequisite
 
         stay.roomStatus = "Dirty";
         stay.digitalKeyStatus = "Revoked";
@@ -139,7 +140,7 @@ describe("End-to-End Hotel Operations Smoke Workflow", () => {
     // Step 6: Night Audit Daily Closing
     it("Step 6: Executes Night Audit and locks business day financials", () => {
         const totalDayRevenue = stay.invoiceGrandTotal;
-        expect(totalDayRevenue).toBeGreaterThan(0);
+        expect(totalDayRevenue.toNumber()).toBeGreaterThan(0);
 
         stay.nightAuditClosed = true;
         expect(stay.nightAuditClosed).toBe(true);

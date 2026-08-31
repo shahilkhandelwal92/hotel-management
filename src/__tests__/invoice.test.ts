@@ -11,12 +11,12 @@ describe("invoice calculations", () => {
             { description: "Food", quantity: 1, unitPrice: 500, taxRate: 5 },
         ], { isInterState: false, isExempt: false });
 
-        expect(result.subTotal).toBe(1500);
-        expect(result.totalTax).toBe(145);
-        expect(result.cgst).toBe(72.5);
-        expect(result.sgst).toBe(72.5);
-        expect(result.igst).toBe(0);
-        expect(result.grandTotal).toBe(1645);
+        expect(result.subTotal.toNumber()).toBe(1500);
+        expect(result.totalTax.toNumber()).toBe(145);
+        expect(result.cgst.toNumber()).toBe(72.5);
+        expect(result.sgst.toNumber()).toBe(72.5);
+        expect(result.igst.toNumber()).toBe(0);
+        expect(result.grandTotal.toNumber()).toBe(1645);
     });
 
     it("uses IGST for inter-state invoices", () => {
@@ -24,9 +24,9 @@ describe("invoice calculations", () => {
             { description: "Room", quantity: 2, unitPrice: 1000, taxRate: 12 },
         ], { isInterState: true, isExempt: false });
 
-        expect(result.cgst).toBe(0);
-        expect(result.sgst).toBe(0);
-        expect(result.igst).toBe(240);
+        expect(result.cgst.toNumber()).toBe(0);
+        expect(result.sgst.toNumber()).toBe(0);
+        expect(result.igst.toNumber()).toBe(240);
     });
 
     it("rejects negative line values", () => {
