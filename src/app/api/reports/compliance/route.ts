@@ -4,13 +4,13 @@ import { requirePermission, PERMISSIONS } from "@/lib/permissions";
 import { resolveTenantContext } from "@/lib/tenantContext";
 
 export async function GET(request: NextRequest) {
-    const permResult = await requirePermission(request, PERMISSIONS.REPORT_FINANCIAL);
-    if ("errorResponse" in permResult) return permResult.errorResponse;
+    const auth = await requirePermission(request, PERMISSIONS.REPORT_FINANCIAL);
+    if (auth instanceof NextResponse) return auth;
 
-    const tenantResult = await resolveTenantContext(request);
-    if (!tenantResult.success) return tenantResult.response;
+    const tenant = await resolveTenantContext(request);
+    if (tenant instanceof NextResponse) return tenant;
 
-    const hotelId = tenantResult.context.hotelId;
+    const hotelId = tenant.hotelId;
 
     // Fetch actual hotel properties and their configurations
     const hotels = await prisma.hotel.findMany({

@@ -1,15 +1,9 @@
-/**
- * Activity Timeline API
- * GET /api/audit/timeline?entityId=&hotelId=&limit=
- * Returns chronological audit trail for any entity (invoice, reservation, payroll)
- */
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { resolveTenantContext } from "@/lib/tenantContext";
+import { requirePermission, PERMISSIONS } from "@/lib/permissions";
+import type { Prisma } from "@prisma/client";
 
-
-
-// Icons for each action type
 const ACTION_META: Record<string, { icon: string; label: string; color: string }> = {
     CREATE: { icon: "✅", label: "Created", color: "#10b981" },
     UPDATE: { icon: "✏️", label: "Updated", color: "#6366f1" },
@@ -27,20 +21,23 @@ const ACTION_META: Record<string, { icon: string; label: string; color: string }
 };
 
 export async function GET(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.REPORT_FINANCIAL);
+    if (auth instanceof NextResponse) return auth;
+
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
 
     const { searchParams } = new URL(req.url);
     const entityId = searchParams.get("entityId");
-    const hotelId = req.headers.get("x-hotel-id") ?? searchParams.get("hotelId");
+    const hotelId = tenant.hotelId;
     const moduleName = searchParams.get("module");
     const limit = Math.min(parseInt(searchParams.get("limit") ?? "50"), 200);
 
     if (!entityId && !hotelId) {
-        return NextResponse.json({ error: "entityId or hotelId required" }, { status: 400 });
+        return NextResponse.json({ error: "entityId or hotel context required" }, { status: 400 });
     }
 
-    const where: any = {};
+    const where: Prisma.AuditLogWhereInput = {};
     if (entityId) where.entityId = entityId;
     if (hotelId) where.hotelId = hotelId;
     if (moduleName) where.module = moduleName;

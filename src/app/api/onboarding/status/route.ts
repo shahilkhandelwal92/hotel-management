@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
-
-/**
- * Onboarding Checklist API
- * GET  /api/onboarding/status?hotelId=
- * POST /api/onboarding/complete { hotelId, step }
- */
+import { resolveTenantContext } from "@/lib/tenantContext";
+import { requirePermission, PERMISSIONS } from "@/lib/permissions";
 
 const STEPS = [
     { key: "hotel_details", label: "Hotel Profile", desc: "Name, contact, address, GSTIN" },
@@ -19,13 +14,15 @@ const STEPS = [
 ];
 
 export async function GET(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.ROOM_VIEW);
+    if (auth instanceof NextResponse) return auth;
 
-    const hotelId = req.headers.get("x-hotel-id") ?? new URL(req.url).searchParams.get("hotelId");
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
+
+    const hotelId = tenant.hotelId;
     if (!hotelId) return NextResponse.json({ error: "hotelId required" }, { status: 400 });
 
-    // Auto-evaluate checklist against real DB data
     const [
         hotel,
         roomCount,
@@ -38,7 +35,7 @@ export async function GET(req: NextRequest) {
         prisma.hotel.findUnique({ where: { id: hotelId }, select: { id: true, name: true, gstin: true, phone: true } }),
         prisma.room.count({ where: { hotelId } }),
         prisma.taxConfiguration.findFirst({ where: { hotelId } }),
-        prisma.user.count({ where: { hotelId, id: { not: session.user.id as string } } }),
+        prisma.user.count({ where: { hotelId, id: { not: auth.userId } } }),
         prisma.nightAudit.count({ where: { hotelId } }),
         prisma.menuItem.count({ where: { hotelId } }),
         prisma.reservation.count({ where: { hotelId, deletedAt: null } }),

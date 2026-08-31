@@ -1,28 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
-
-/**
- * Feedback Collection API
- * POST /api/feedback  { hotelId, category, message, rating? }
- * GET  /api/feedback?hotelId=  (admin/SA view)
- */
+import { resolveTenantContext } from "@/lib/tenantContext";
+import { requirePermission, PERMISSIONS } from "@/lib/permissions";
 
 export async function POST(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.GUEST_VIEW);
+    if (auth instanceof NextResponse) return auth;
 
-    const hotelId = req.headers.get("x-hotel-id");
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
+
+    const hotelId = tenant.hotelId;
     const body = await req.json();
     const { category, message, rating, page } = body;
 
     if (!message?.trim()) return NextResponse.json({ error: "Message required" }, { status: 400 });
 
-    // Save as AuditLog entry under module "Feedback" (no extra table needed)
     await prisma.auditLog.create({
         data: {
             hotelId,
-            userId: session.user.id as string,
+            userId: auth.userId,
             module: "Feedback",
             action: "CREATE",
             details: JSON.stringify({ category: category ?? "General", rating: rating ?? null, page: page ?? null, message }),
@@ -35,16 +32,13 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.REPORT_FINANCIAL);
+    if (auth instanceof NextResponse) return auth;
 
-    const injectedRole = req.headers.get("x-user-role");
-    const isSA = injectedRole === "SUPER_ADMIN" || injectedRole === "OWNER";
-    if (!isSA) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
 
-    const { searchParams } = new URL(req.url);
-    const hotelId = searchParams.get("hotelId");
-
+    const hotelId = tenant.hotelId;
     const entries = await prisma.auditLog.findMany({
         where: { module: "Feedback", ...(hotelId ? { hotelId } : {}) },
         orderBy: { createdAt: "desc" },

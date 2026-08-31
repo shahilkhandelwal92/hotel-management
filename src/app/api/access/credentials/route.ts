@@ -1,23 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
 import { getLockProvider } from "@/lib/locks/getLockProvider";
 import { logAudit } from "@/lib/audit";
 import { requireFeature } from "@/lib/requireFeature";
+import { resolveTenantContext } from "@/lib/tenantContext";
+import { requirePermission, PERMISSIONS } from "@/lib/permissions";
 
 /**
  * POST /api/access/credentials
  * Issue a new access credential (key) for a guest or staff member.
- * ...
  */
 export async function POST(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.ROOM_UPDATE);
+    if (auth instanceof NextResponse) return auth;
 
-    const hotelId = req.headers.get("x-hotel-id");
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
+
+    const hotelId = tenant.hotelId;
     if (!hotelId) return NextResponse.json({ error: "hotelId required" }, { status: 400 });
 
-    // ── Gating: Requires Mobile Key Feature ──────────────────
     const guard = await requireFeature(hotelId, "SMART_ACCESS_MOBILE_KEY");
     if (guard) return guard;
 
@@ -28,14 +30,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "userType, accessType, accessScope, validFrom, validUntil are required" }, { status: 400 });
     }
 
-    // Validate dates
     const from = new Date(validFrom);
     const until = new Date(validUntil);
     if (isNaN(from.getTime()) || isNaN(until.getTime()) || until <= from) {
         return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
     }
 
-    // Call the hardware abstraction layer
     const lockProvider = getLockProvider(provider ?? "INTERNAL_QR");
     let externalRef: string | undefined;
     let mobileKeyPayload: string | undefined;
@@ -52,30 +52,31 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Lock provider error: " + (err as Error).message }, { status: 502 });
     }
 
-    // Persist to DB
     const credential = await prisma.accessCredential.create({
         data: {
             hotelId, reservationId, userId,
             userType, accessType,
             provider: provider ?? "INTERNAL_QR",
-            externalRef,
             accessScope,
-            validFrom: from, validUntil: until,
+            validFrom: from,
+            validUntil: until,
+            externalRef,
+            issuedBy: auth.userId,
             status: "Active",
-            issuedBy: session.user.id as string,
         },
     });
 
     await logAudit({
         hotelId,
-        userId: session.user.id as string,
+        userId: auth.userId,
         module: "AccessCredential",
         action: "CREATE",
         entityId: credential.id,
-        newValue: { accessScope, userType, reservationId },
+        newValue: { userType, accessType, accessScope, validFrom, validUntil, provider },
+        req,
     });
 
-    return NextResponse.json({ credential, mobileKeyPayload }, { status: 201 });
+    return NextResponse.json({ credential }, { status: 201 });
 }
 
 /**
@@ -83,14 +84,17 @@ export async function POST(req: NextRequest) {
  * List credentials for this hotel (dashboard).
  */
 export async function GET(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.ROOM_VIEW);
+    if (auth instanceof NextResponse) return auth;
 
-    const hotelId = req.headers.get("x-hotel-id");
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
+
+    const hotelId = tenant.hotelId;
     if (!hotelId) return NextResponse.json({ error: "hotelId required" }, { status: 400 });
 
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status");         // Active / Revoked / Expired
+    const status = searchParams.get("status");
     const reservationId = searchParams.get("reservationId");
     const scope = searchParams.get("scope");
     const page = parseInt(searchParams.get("page") ?? "1");
@@ -102,7 +106,6 @@ export async function GET(req: NextRequest) {
     if (reservationId) where.reservationId = reservationId;
     if (scope) where.accessScope = scope;
 
-    // Auto-expire: mark any past validUntil as Expired
     await prisma.accessCredential.updateMany({
         where: { hotelId, status: "Active", validUntil: { lt: new Date() } },
         data: { status: "Expired" },

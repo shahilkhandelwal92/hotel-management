@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
 import { assertDayNotLocked, logAudit } from "@/lib/audit";
-
-
+import { resolveTenantContext } from "@/lib/tenantContext";
+import { requirePermission, PERMISSIONS } from "@/lib/permissions";
 
 // ── GET /api/folio ────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.FOLIO_VIEW);
+    if (auth instanceof NextResponse) return auth;
 
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
+
+    const hotelId = tenant.hotelId;
     const { searchParams } = new URL(req.url);
     const reservationId = searchParams.get("reservationId");
-
-    // Tenant isolation — always from header
-    const injectedHotelId = req.headers.get("x-hotel-id");
-    const injectedRole = req.headers.get("x-user-role");
-    const isSA = injectedRole === "SUPER_ADMIN" || injectedRole === "OWNER";
-    const hotelId = isSA ? searchParams.get("hotelId") : injectedHotelId;
 
     if (reservationId) {
         const folios = await prisma.folio.findMany({
@@ -45,28 +42,26 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ folios });
     }
 
-    return NextResponse.json({ error: "reservationId or hotelId required" }, { status: 400 });
+    return NextResponse.json({ error: "reservationId or hotel context required" }, { status: 400 });
 }
 
 // ── POST /api/folio ───────────────────────────────────────────
 export async function POST(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.FOLIO_ADJUST);
+    if (auth instanceof NextResponse) return auth;
 
-    const injectedHotelId = req.headers.get("x-hotel-id");
-    const injectedRole = req.headers.get("x-user-role");
-    const isSA = injectedRole === "SUPER_ADMIN" || injectedRole === "OWNER";
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
 
+    const hotelId = tenant.hotelId;
     const body = await req.json();
-    const { mode } = body; // "create_folio" | "post_transaction"
+    const { mode } = body;
 
     if (mode === "create_folio") {
         const { reservationId, folioType } = body;
-        const hotelId = isSA ? (body.hotelId ?? injectedHotelId) : injectedHotelId;
         if (!hotelId) return NextResponse.json({ error: "Hotel context missing" }, { status: 403 });
         if (!reservationId) return NextResponse.json({ error: "reservationId required" }, { status: 400 });
 
-        // Guard: reservation must exist and not be checked out
         const reservation = await prisma.reservation.findUnique({
             where: { id: reservationId },
             select: { status: true, hotelId: true },
@@ -79,8 +74,7 @@ export async function POST(req: NextRequest) {
             }, { status: 422 });
         }
 
-        // Night audit lock check
-        const lock = await assertDayNotLocked(hotelId, new Date(), isSA);
+        const lock = await assertDayNotLocked(hotelId, new Date(), auth.roles.includes("SUPER_ADMIN"));
         if (lock) return NextResponse.json({ error: lock }, { status: 423 });
 
         const folio = await prisma.folio.create({
@@ -97,19 +91,16 @@ export async function POST(req: NextRequest) {
             include: { reservation: { select: { status: true } } },
         });
         if (!folio) return NextResponse.json({ error: "Folio not found" }, { status: 404 });
-        if (!isSA && folio.hotelId !== injectedHotelId) {
+        if (hotelId && folio.hotelId !== hotelId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
-        // ── 1. Folio status check ──────────────────────────────────
         if (folio.status !== "Open") {
             return NextResponse.json({
                 error: `Folio is ${folio.status} — cannot post new transactions.`,
             }, { status: 422 });
         }
 
-        // ── 2. Reservation CheckedOut guard ───────────────────────
-        // Block new charges on a checked-out reservation (accounting integrity)
         const resStatus = folio.reservation?.status;
         if (resStatus === "CheckedOut" || resStatus === "Cancelled") {
             if (type === "Charge") {
@@ -117,16 +108,9 @@ export async function POST(req: NextRequest) {
                     error: `Cannot post charges to a ${resStatus} reservation. Guest has departed. Use a credit note or refund instead.`,
                 }, { status: 422 });
             }
-            // Refunds/adjustments allowed if SA provides reason
-            if (!isSA && type !== "Refund") {
-                return NextResponse.json({
-                    error: "Reservation is checked out. Only refunds are permitted without admin override.",
-                }, { status: 422 });
-            }
         }
 
-        // ── 3. Night Audit day lock ───────────────────────────────
-        const lock = await assertDayNotLocked(folio.hotelId, new Date(), isSA, overrideReason);
+        const lock = await assertDayNotLocked(folio.hotelId, new Date(), auth.roles.includes("SUPER_ADMIN"), overrideReason);
         if (lock) return NextResponse.json({ error: lock }, { status: 423 });
 
         const allowedTypes = ["Charge", "Payment", "Refund", "Adjustment"];
@@ -147,7 +131,6 @@ export async function POST(req: NextRequest) {
                 ? Math.abs(rawAmount)
                 : rawAmount;
 
-        // ── 4. Atomic transaction ─────────────────────────────────
         const [tx, updatedFolio] = await prisma.$transaction([
             prisma.folioTransaction.create({
                 data: {
@@ -156,7 +139,7 @@ export async function POST(req: NextRequest) {
                     description,
                     amount: parsedAmount,
                     referenceId,
-                    postedById: session.user.id as string,
+                    postedById: auth.userId,
                 },
             }),
             prisma.folio.update({
@@ -167,7 +150,7 @@ export async function POST(req: NextRequest) {
 
         await logAudit({
             hotelId: folio.hotelId,
-            userId: session.user.id as string,
+            userId: auth.userId,
             module: "Folio",
             action: "UPDATE",
             entityId: folio.id,
@@ -184,17 +167,18 @@ export async function POST(req: NextRequest) {
 
 // ── PUT /api/folio — close/transfer ──────────────────────────
 export async function PUT(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.FOLIO_ADJUST);
+    if (auth instanceof NextResponse) return auth;
 
-    const injectedHotelId = req.headers.get("x-hotel-id");
-    const injectedRole = req.headers.get("x-user-role");
-    const isSA = injectedRole === "SUPER_ADMIN" || injectedRole === "OWNER";
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
+
+    const hotelId = tenant.hotelId;
     const { id, status, transferToFolioId } = await req.json();
 
     const source = await prisma.folio.findUnique({ where: { id }, include: { transactions: true } });
     if (!source) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (!isSA && source.hotelId !== injectedHotelId) {
+    if (hotelId && source.hotelId !== hotelId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -226,14 +210,14 @@ export async function PUT(req: NextRequest) {
                     description: `Transfer from folio ${id}`,
                     amount: source.balance,
                     referenceId: id,
-                    postedById: session.user.id as string,
+                    postedById: auth.userId,
                 },
             }),
         ]);
 
         await logAudit({
             hotelId: source.hotelId,
-            userId: session.user.id as string,
+            userId: auth.userId,
             module: "Folio",
             action: "UPDATE",
             entityId: source.id,
@@ -254,7 +238,7 @@ export async function PUT(req: NextRequest) {
     const folio = await prisma.folio.update({ where: { id }, data: { status } });
     await logAudit({
         hotelId: source.hotelId,
-        userId: session.user.id as string,
+        userId: auth.userId,
         module: "Folio",
         action: "UPDATE",
         entityId: source.id,

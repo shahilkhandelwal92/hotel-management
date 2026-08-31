@@ -5,23 +5,26 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { resolveTenantContext } from "@/lib/tenantContext";
+import { requirePermission, PERMISSIONS } from "@/lib/permissions";
 
 
 
 export async function GET(req: NextRequest) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.REPORT_FINANCIAL);
+    if (auth instanceof NextResponse) return auth;
 
-    const hotelId = req.headers.get("x-hotel-id") ??
-        new URL(req.url).searchParams.get("hotelId");
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
 
+    const hotelId = tenant.hotelId;
     if (!hotelId) return NextResponse.json({ error: "hotelId required" }, { status: 400 });
 
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    const timezone = hotel?.timezone || "Asia/Kolkata";
+
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    const todayEnd = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
     const [
         todayCheckIns,

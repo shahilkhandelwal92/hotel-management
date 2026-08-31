@@ -231,41 +231,35 @@ export async function requirePermission(
     req: NextRequest,
     permission: AppPermission,
     targetHotelId?: string | null
-): Promise<{ auth: AuthContext } | { errorResponse: NextResponse }> {
+): Promise<AuthContext | NextResponse> {
     const session = await getSession();
     if (!session?.id) {
-        return {
-            errorResponse: NextResponse.json(
-                { error: "Authentication required", code: "UNAUTHENTICATED" },
-                { status: 401 }
-            ),
-        };
+        return NextResponse.json(
+            { error: "Authentication required", code: "UNAUTHENTICATED" },
+            { status: 401 }
+        );
     }
 
     const auth = await getAuthoritativeUserContext(session.id, targetHotelId);
     if (!auth) {
-        return {
-            errorResponse: NextResponse.json(
-                { error: "User session invalid or user disabled", code: "USER_INVALID" },
-                { status: 401 }
-            ),
-        };
+        return NextResponse.json(
+            { error: "User session invalid or user disabled", code: "USER_INVALID" },
+            { status: 401 }
+        );
     }
 
     if (auth.isSuperAdmin || auth.permissions.has(permission)) {
-        return { auth };
+        return auth;
     }
 
-    return {
-        errorResponse: NextResponse.json(
-            {
-                error: `Access Denied: Missing required permission [${permission}]`,
-                code: "FORBIDDEN",
-                requiredPermission: permission,
-            },
-            { status: 403 }
-        ),
-    };
+    return NextResponse.json(
+        {
+            error: `Access Denied: Missing required permission [${permission}]`,
+            code: "FORBIDDEN",
+            requiredPermission: permission,
+        },
+        { status: 403 }
+    );
 }
 
 /**
@@ -275,41 +269,35 @@ export async function requireAnyPermission(
     req: NextRequest,
     permissions: AppPermission[],
     targetHotelId?: string | null
-): Promise<{ auth: AuthContext } | { errorResponse: NextResponse }> {
+): Promise<AuthContext | NextResponse> {
     const session = await getSession();
     if (!session?.id) {
-        return {
-            errorResponse: NextResponse.json(
-                { error: "Authentication required", code: "UNAUTHENTICATED" },
-                { status: 401 }
-            ),
-        };
+        return NextResponse.json(
+            { error: "Authentication required", code: "UNAUTHENTICATED" },
+            { status: 401 }
+        );
     }
 
     const auth = await getAuthoritativeUserContext(session.id, targetHotelId);
     if (!auth) {
-        return {
-            errorResponse: NextResponse.json(
-                { error: "User session invalid", code: "USER_INVALID" },
-                { status: 401 }
-            ),
-        };
+        return NextResponse.json(
+            { error: "User session invalid", code: "USER_INVALID" },
+            { status: 401 }
+        );
     }
 
     if (auth.isSuperAdmin || permissions.some((p) => auth.permissions.has(p))) {
-        return { auth };
+        return auth;
     }
 
-    return {
-        errorResponse: NextResponse.json(
-            {
-                error: `Access Denied: Requires one of [${permissions.join(", ")}]`,
-                code: "FORBIDDEN",
-                requiredPermissions: permissions,
-            },
-            { status: 403 }
-        ),
-    };
+    return NextResponse.json(
+        {
+            error: `Access Denied: Requires one of [${permissions.join(", ")}]`,
+            code: "FORBIDDEN",
+            requiredPermissions: permissions,
+        },
+        { status: 403 }
+    );
 }
 
 /**
@@ -319,40 +307,34 @@ export async function requireAllPermissions(
     req: NextRequest,
     permissions: AppPermission[],
     targetHotelId?: string | null
-): Promise<{ auth: AuthContext } | { errorResponse: NextResponse }> {
+): Promise<AuthContext | NextResponse> {
     const session = await getSession();
     if (!session?.id) {
-        return {
-            errorResponse: NextResponse.json(
-                { error: "Authentication required", code: "UNAUTHENTICATED" },
-                { status: 401 }
-            ),
-        };
+        return NextResponse.json(
+            { error: "Authentication required", code: "UNAUTHENTICATED" },
+            { status: 401 }
+        );
     }
 
     const auth = await getAuthoritativeUserContext(session.id, targetHotelId);
     if (!auth) {
-        return {
-            errorResponse: NextResponse.json(
-                { error: "User session invalid", code: "USER_INVALID" },
-                { status: 401 }
-            ),
-        };
+        return NextResponse.json(
+            { error: "User session invalid", code: "USER_INVALID" },
+            { status: 401 }
+        );
     }
 
     const missing = permissions.filter((p) => !auth.permissions.has(p));
     if (auth.isSuperAdmin || missing.length === 0) {
-        return { auth };
+        return auth;
     }
 
-    return {
-        errorResponse: NextResponse.json(
-            {
-                error: `Access Denied: Missing permissions [${missing.join(", ")}]`,
-                code: "FORBIDDEN",
-                missingPermissions: missing,
-            },
-            { status: 403 }
-        ),
-    };
+    return NextResponse.json(
+        {
+            error: `Access Denied: Missing permissions [${missing.join(", ")}]`,
+            code: "FORBIDDEN",
+            missingPermissions: missing,
+        },
+        { status: 403 }
+    );
 }

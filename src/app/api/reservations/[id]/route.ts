@@ -1,92 +1,89 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getSession, Session } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { getLockProvider } from "@/lib/locks/getLockProvider";
+import { resolveTenantContext } from "@/lib/tenantContext";
+import { requirePermission, PERMISSIONS } from "@/lib/permissions";
+import { formatHotelBusinessDate, DEFAULT_HOTEL_TIMEZONE } from "@/lib/timezone";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-function getTenantContext(req: NextRequest, session: Session) {
-    const headerRole = req.headers.get("x-user-role");
-    const isSuperAdmin =
-        headerRole === "SUPER_ADMIN" ||
-        headerRole === "OWNER" ||
-        session.roles.some((role) => role === "SUPER_ADMIN" || role === "OWNER");
-
-    return {
-        isSuperAdmin,
-        hotelId: isSuperAdmin ? null : (req.headers.get("x-hotel-id") ?? session.hotelId),
-    };
-}
-
-function reservationWhere(id: string, hotelId: string | null) {
-    return {
-        id,
-        deletedAt: null,
-        ...(hotelId ? { hotelId } : {}),
-    };
-}
-
-function getStayDates(checkIn: Date, checkOut: Date): Date[] {
+function getStayDates(checkIn: Date, checkOut: Date, timezone: string = DEFAULT_HOTEL_TIMEZONE): Date[] {
     const dates: Date[] = [];
-    const cursor = new Date(checkIn);
-    const end = new Date(checkOut);
-    cursor.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
+    const checkInTime = new Date(checkIn).getTime();
+    const checkOutTime = new Date(checkOut).getTime();
+    const oneDay = 24 * 60 * 60 * 1000;
+    const totalNights = Math.max(1, Math.round((checkOutTime - checkInTime) / oneDay));
 
-    while (cursor < end) {
-        dates.push(new Date(cursor));
-        cursor.setDate(cursor.getDate() + 1);
+    for (let i = 0; i < totalNights; i++) {
+        const d = new Date(checkInTime + i * oneDay);
+        dates.push(new Date(formatHotelBusinessDate(d, timezone) + "T00:00:00.000Z"));
     }
 
     return dates;
 }
 
 export async function GET(req: NextRequest, { params }: RouteContext) {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.RESERVATION_VIEW);
+    if (auth instanceof NextResponse) return auth;
 
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
+
+    const hotelId = tenant.hotelId;
     const { id } = await params;
-    const { isSuperAdmin, hotelId } = getTenantContext(req, session);
-    if (!isSuperAdmin && !hotelId) {
-        return NextResponse.json({ error: "Hotel context missing" }, { status: 403 });
-    }
 
     try {
         const reservation = await prisma.reservation.findFirst({
-            where: reservationWhere(id, hotelId),
+            where: {
+                id,
+                deletedAt: null,
+                ...(hotelId ? { hotelId } : {}),
+            },
             include: {
                 room: true,
                 guestProfile: true,
                 invoices: { include: { items: true, payments: true } },
             },
         });
-        if (!reservation) return NextResponse.json({ error: "Not found" }, { status: 404 });
+        if (!reservation) return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
         return NextResponse.json({ reservation });
     } catch {
-        return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to fetch reservation" }, { status: 500 });
     }
 }
 
 export async function PUT(req: NextRequest, { params }: RouteContext) {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
 
+    const hotelId = tenant.hotelId;
     const { id } = await params;
-    const { isSuperAdmin, hotelId } = getTenantContext(req, session);
-    if (!isSuperAdmin && !hotelId) {
-        return NextResponse.json({ error: "Hotel context missing" }, { status: 403 });
-    }
+    const body = await req.json();
+    const { action, ...data } = body;
+
+    // Enforce action-specific authoritative permissions
+    const requiredPerm =
+        action === "checkin" ? PERMISSIONS.RESERVATION_CHECKIN :
+        action === "checkout" ? PERMISSIONS.RESERVATION_CHECKOUT :
+        (action === "cancel" || action === "noshow") ? PERMISSIONS.RESERVATION_CANCEL :
+        PERMISSIONS.RESERVATION_UPDATE;
+
+    const auth = await requirePermission(req, requiredPerm);
+    if (auth instanceof NextResponse) return auth;
 
     try {
-        const body = await req.json();
-        const { action, ...data } = body;
-
         const existing = await prisma.reservation.findFirst({
-            where: reservationWhere(id, hotelId),
+            where: {
+                id,
+                deletedAt: null,
+                ...(hotelId ? { hotelId } : {}),
+            },
+            include: { hotel: true },
         });
-        if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+        if (!existing) return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
 
+        const hotelTimezone = existing.hotel?.timezone || DEFAULT_HOTEL_TIMEZONE;
         let reservation;
 
         if (action === "checkin") {
@@ -194,10 +191,6 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
                 });
             });
         } else {
-            if (existing.status === "CheckedIn" || existing.status === "CheckedOut") {
-                return NextResponse.json({ error: `Cannot reassign a ${existing.status} reservation` }, { status: 422 });
-            }
-
             const nextRoomId = data.roomId === undefined ? existing.roomId : (data.roomId || null);
             const deposit = data.advanceDeposit === undefined
                 ? Number(existing.advanceDeposit)
@@ -222,8 +215,9 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
                     await tx.roomBlock.deleteMany({ where: { reservationId: existing.id } });
 
                     if (nextRoomId) {
+                        const stayDates = getStayDates(existing.checkIn, existing.checkOut, hotelTimezone);
                         await tx.roomBlock.createMany({
-                            data: getStayDates(existing.checkIn, existing.checkOut).map((date) => ({
+                            data: stayDates.map((date) => ({
                                 hotelId: existing.hotelId,
                                 roomId: nextRoomId,
                                 reservationId: existing.id,
@@ -267,7 +261,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
 
         await logAudit({
             hotelId: existing.hotelId,
-            userId: session.id,
+            userId: auth.userId,
             module: "Reservation",
             action: auditAction,
             entityId: existing.id,
@@ -282,26 +276,30 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
         if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
             return NextResponse.json({ error: "Room is already booked for one or more stay dates" }, { status: 409 });
         }
-        const message = error instanceof Error ? error.message : "Failed to update";
+        const message = error instanceof Error ? error.message : "Failed to update reservation";
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
 
 export async function DELETE(req: NextRequest, { params }: RouteContext) {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.RESERVATION_CANCEL);
+    if (auth instanceof NextResponse) return auth;
 
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
+
+    const hotelId = tenant.hotelId;
     const { id } = await params;
-    const { isSuperAdmin, hotelId } = getTenantContext(req, session);
-    if (!isSuperAdmin && !hotelId) {
-        return NextResponse.json({ error: "Hotel context missing" }, { status: 403 });
-    }
 
     try {
         const existing = await prisma.reservation.findFirst({
-            where: reservationWhere(id, hotelId),
+            where: {
+                id,
+                deletedAt: null,
+                ...(hotelId ? { hotelId } : {}),
+            },
         });
-        if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+        if (!existing) return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
         if (existing.status === "CheckedIn") {
             return NextResponse.json({ error: "Checked-in reservations cannot be deleted" }, { status: 422 });
         }
@@ -322,7 +320,7 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
 
         await logAudit({
             hotelId: existing.hotelId,
-            userId: session.id,
+            userId: auth.userId,
             module: "Reservation",
             action: "DELETE",
             entityId: existing.id,
@@ -333,6 +331,6 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error(error);
-        return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to delete reservation" }, { status: 500 });
     }
 }

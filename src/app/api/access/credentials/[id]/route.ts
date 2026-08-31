@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
 import { getLockProvider } from "@/lib/locks/getLockProvider";
 import { logAudit } from "@/lib/audit";
+import { resolveTenantContext } from "@/lib/tenantContext";
+import { requirePermission, PERMISSIONS } from "@/lib/permissions";
 
 /**
  * DELETE /api/access/credentials/[id]
@@ -12,10 +13,13 @@ export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.ROOM_UPDATE);
+    if (auth instanceof NextResponse) return auth;
 
-    const hotelId = req.headers.get("x-hotel-id");
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
+
+    const hotelId = tenant.hotelId;
     if (!hotelId) return NextResponse.json({ error: "hotelId required" }, { status: 400 });
 
     const { id } = await params;
@@ -29,14 +33,12 @@ export async function DELETE(
         return NextResponse.json({ error: "Credential already revoked" }, { status: 409 });
     }
 
-    // Call hardware abstraction layer to revoke at vendor level
     if (credential.externalRef) {
         try {
             const lockProvider = getLockProvider(credential.provider);
             await lockProvider.revokeKey(credential.externalRef, hotelId);
         } catch (err) {
             console.error("[revokeKey error]", err);
-            // Log but don't fail — still mark as Revoked in DB
         }
     }
 
@@ -45,13 +47,13 @@ export async function DELETE(
         data: {
             status: "Revoked",
             revokedAt: new Date(),
-            revokedBy: session.user.id as string,
+            revokedBy: auth.userId,
         },
     });
 
     await logAudit({
         hotelId,
-        userId: session.user.id as string,
+        userId: auth.userId,
         module: "AccessCredential",
         action: "DELETE",
         entityId: id,
@@ -64,16 +66,19 @@ export async function DELETE(
 
 /**
  * GET /api/access/credentials/[id]
- * Get a single credential with its access log.
+ * Inspect a specific credential and fetch its access logs.
  */
 export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const session = await getSession();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requirePermission(req, PERMISSIONS.ROOM_VIEW);
+    if (auth instanceof NextResponse) return auth;
 
-    const hotelId = req.headers.get("x-hotel-id");
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
+
+    const hotelId = tenant.hotelId;
     if (!hotelId) return NextResponse.json({ error: "hotelId required" }, { status: 400 });
 
     const { id } = await params;
@@ -83,12 +88,12 @@ export async function GET(
         include: {
             accessLogs: {
                 orderBy: { timestamp: "desc" },
-                take: 50,
-                select: { id: true, action: true, source: true, deviceId: true, timestamp: true, userType: true, roomId: true },
+                take: 20,
             },
         },
     });
 
-    if (!credential) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!credential) return NextResponse.json({ error: "Credential not found" }, { status: 404 });
+
     return NextResponse.json({ credential });
 }

@@ -22,14 +22,14 @@ function getDateRange(start: Date, end: Date, timeZone?: string): Date[] {
 }
 
 export async function GET(req: NextRequest) {
-    const permResult = await requirePermission(req, PERMISSIONS.RESERVATION_VIEW);
-    if ("errorResponse" in permResult) return permResult.errorResponse;
+    const auth = await requirePermission(req, PERMISSIONS.RESERVATION_VIEW);
+    if (auth instanceof NextResponse) return auth;
 
-    const tenantResult = await resolveTenantContext(req);
-    if (!tenantResult.success) return tenantResult.response;
+    const tenant = await resolveTenantContext(req);
+    if (tenant instanceof NextResponse) return tenant;
 
     const { searchParams } = new URL(req.url);
-    const hotelId = tenantResult.context.hotelId;
+    const hotelId = tenant.hotelId;
     const status = searchParams.get("status");
     const checkIn = searchParams.get("checkIn");
     const checkOut = searchParams.get("checkOut");
@@ -65,8 +65,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const permResult = await requirePermission(req, PERMISSIONS.RESERVATION_CREATE);
-    if ("errorResponse" in permResult) return permResult.errorResponse;
+    const auth = await requirePermission(req, PERMISSIONS.RESERVATION_CREATE);
+    if (auth instanceof NextResponse) return auth;
 
     const body = await req.json();
     const {
@@ -102,9 +102,9 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    const tenantResult = await resolveTenantContext(req, requestedHotelId);
-    if (!tenantResult.success) return tenantResult.response;
-    const hotelId = tenantResult.context.hotelId;
+    const tenant = await resolveTenantContext(req, requestedHotelId);
+    if (tenant instanceof NextResponse) return tenant;
+    const hotelId = tenant.hotelId;
 
     const hotel = await prisma.hotel.findUnique({
         where: { id: hotelId },
@@ -282,7 +282,7 @@ export async function POST(req: NextRequest) {
                     type: "Charge",
                     description: `Room Tariff (${pricing.nights} nights) - ${bookingRef}`,
                     amount: pricing.totalAmount,
-                    postedById: permResult.auth.userId,
+                    postedById: auth.userId,
                 },
             });
 
@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
                         type: "Payment",
                         description: `Advance Deposit Received - ${bookingRef}`,
                         amount: -deposit,
-                        postedById: permResult.auth.userId,
+                        postedById: auth.userId,
                     },
                 });
 

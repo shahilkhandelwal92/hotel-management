@@ -1,7 +1,7 @@
 /**
- * Distributed Rate Limiting Abstraction
+ * Distributed Rate Limiting Abstraction (Redis / Upstash + Memory Fallback)
  * ──────────────────────────────────────────────────────────────────────
- * Sliding-window rate limiter with production-ready fallback support.
+ * Sliding-window rate limiter with distributed Redis store in production.
  * Protects login, public APIs, payment endpoints, and exports.
  */
 
@@ -22,9 +22,9 @@ export interface RateLimiterStore {
 }
 
 /**
- * High-performance in-memory sliding window rate limiter
+ * In-memory sliding window rate limiter (Development & Testing fallback)
  */
-class MemoryRateLimiter implements RateLimiterStore {
+export class MemoryRateLimiter implements RateLimiterStore {
     private hits = new Map<string, { count: number; resetTime: number }>();
 
     async check(key: string, options: RateLimitOptions): Promise<RateLimitResult> {
@@ -63,8 +63,61 @@ class MemoryRateLimiter implements RateLimiterStore {
     }
 }
 
-// Global singleton instance with extensible pluggable provider
-export const rateLimiter: RateLimiterStore = new MemoryRateLimiter();
+/**
+ * Distributed Redis Rate Limiter (Upstash / Redis REST API for production serverless)
+ */
+export class DistributedRedisRateLimiter implements RateLimiterStore {
+    private fallback = new MemoryRateLimiter();
+    private restUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.REDIS_REST_URL;
+    private restToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.REDIS_REST_TOKEN;
+
+    async check(key: string, options: RateLimitOptions): Promise<RateLimitResult> {
+        if (!this.restUrl || !this.restToken) {
+            return this.fallback.check(key, options);
+        }
+
+        try {
+            const windowSeconds = Math.ceil(options.windowMs / 1000);
+            const redisKey = `ratelimit:${key}`;
+
+            // Atomic increment and TTL via Upstash REST pipeline
+            const response = await fetch(`${this.restUrl}/pipeline`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${this.restToken}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify([
+                    ["INCR", redisKey],
+                    ["EXPIRE", redisKey, windowSeconds, "NX"],
+                    ["PTTL", redisKey],
+                ]),
+                cache: "no-store",
+            });
+
+            if (!response.ok) {
+                return this.fallback.check(key, options);
+            }
+
+            const data = await response.json();
+            const currentCount = Number(data[0]?.result ?? 1);
+            const pttl = Math.max(0, Number(data[2]?.result ?? options.windowMs));
+
+            const allowed = currentCount <= options.maxRequests;
+            return {
+                allowed,
+                remaining: Math.max(0, options.maxRequests - currentCount),
+                resetMs: pttl > 0 ? pttl : options.windowMs,
+                total: options.maxRequests,
+            };
+        } catch {
+            return this.fallback.check(key, options);
+        }
+    }
+}
+
+// Global singleton instance
+export const rateLimiter: RateLimiterStore = new DistributedRedisRateLimiter();
 
 /**
  * Standard rate limit configurations for critical endpoint tiers
