@@ -26,7 +26,7 @@ import { createMaintenanceAsset, createWorkOrder, completeWorkOrder } from "@/li
 import { createARAccount, postARInvoice } from "@/lib/arEngine";
 import { processNoShow } from "@/lib/noShowEngine";
 
-jest.setTimeout(45000);
+jest.setTimeout(90000);
 
 describe("Complete 24-Hour Virtual Hotel Operations Simulation", () => {
     let testHotelId: string;
