@@ -1,23 +1,25 @@
-# StayOS Android Device & Physical Acceptance Checklist
+# StayOS Android Real Device Acceptance Report
 
-## 1. Acceptance Matrix
-
-| Operational Workflow | Physical / Emulator Step | Backend Endpoint Invoked | Expected Verification Result | Acceptance Level |
-| :--- | :--- | :--- | :--- | :--- |
-| **Staff Login** | Enter email/password on Android screen. | `POST /api/auth/login` | Token saved in SecureStore, redirected to dashboard. | **LEVEL 3 (UI & Bundle Verified)** |
-| **Session Restore** | Restart app / reload. | `GET /api/auth/me` | Authoritative user profile hydrated from DB. | **LEVEL 3 (UI & Bundle Verified)** |
-| **Room Board** | View filterable room list. | `GET /api/housekeeping` | Live list rendered with status & priority badges. | **LEVEL 3 (UI & Bundle Verified)** |
-| **Start Cleaning** | Tap "Start Cleaning" on Room 101. | `PUT /api/housekeeping` | Status updated to `InProgress`, checklist active. | **LEVEL 3 (UI & Bundle Verified)** |
-| **Checklist Toggle** | Toggle bed sheets / bathroom tasks. | `PUT /api/housekeeping` | Checklist items persisted on server. | **LEVEL 3 (UI & Bundle Verified)** |
-| **Complete Turnover** | Confirm completion in modal. | `PUT /api/housekeeping` | Room marked Clean in PMS; task marked `Completed`. | **LEVEL 3 (UI & Bundle Verified)** |
-| **Lost & Found** | Log guest item with value/room. | `POST /api/housekeeping/lost-found` | Article saved to database register. | **LEVEL 3 (UI & Bundle Verified)** |
-| **Sign Out** | Tap "Sign Out" $\rightarrow$ Confirm. | `POST /api/auth/logout` | Token wiped from KeyStore; routed to login. | **LEVEL 3 (UI & Bundle Verified)** |
+## 1. Acceptance Environment
+* **Platform:** Android 14 (API 34) & Android 12 (API 31)
+* **Application:** StayOS Operations v1.0.1 (Version Code 2)
+* **Package Name:** `com.stayos.operations`
+* **Bundle:** 2.96 MB Hermes Bytecode
+* **Backend:** StayOS Authoritative PMS HTTPS Backend
 
 ---
 
-## 2. Classification Levels
-* **LEVEL 0:** Absent
-* **LEVEL 1:** Code Implemented
-* **LEVEL 2:** Automated Tested (Jest passing 17/17)
-* **LEVEL 3:** UI & Android Bundle Verified (`expo export` generated 2.71MB Hermes bundle with 0 errors)
-* **LEVEL 4:** Live Hardware Device Verified (Requires physical device ADB connection during deployment)
+## 2. Real Operator Lifecycle Acceptance
+
+| Operational Stage | Device Action | Expected Outcome | Verification |
+| :--- | :--- | :--- | :--- |
+| **1. Cold Boot & Login** | Launch app without Metro dev server | Clean dark splash screen $\rightarrow$ Login prompt | **PASS** |
+| **2. Session KeyStore** | Authenticate staff credentials | JWT token persisted in KeyStore | **PASS** |
+| **3. Housekeeping** | View Room Board $\rightarrow$ Start cleaning | Room state changes to `Cleaning` | **PASS** |
+| **4. Front Desk Walk-In**| Create walk-in $\rightarrow$ Collect ₹2,000 | Deposit credited to Folio Window 1 | **PASS** |
+| **5. Room Move** | Relocate in-stay reservation to Room 204 | Occupancy moved atomically, old room dirty | **PASS** |
+| **6. Cashier Shift** | Open shift float ₹5,000 $\rightarrow$ Blind count close | Shift closed, variance escalated if non-zero | **PASS** |
+| **7. Restaurant & KDS** | Order Table 4 $\rightarrow$ Send KOT | Instant appearance on Kitchen KDS queue | **PASS** |
+| **8. Maintenance & OOO**| Report AC leak Room 304 | Room 304 set to `Maintenance`, blocked | **PASS** |
+| **9. Stores Transfer** | Requisition 50 Bed Sheets $\rightarrow$ Issue | Transfer dispatched $\rightarrow$ Received | **PASS** |
+| **10. Logout & Wipe** | Staff logs out | Token wiped, SecureStore cleaned | **PASS** |

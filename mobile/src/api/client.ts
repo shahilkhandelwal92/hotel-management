@@ -46,12 +46,27 @@ export class ApiError extends Error {
   }
 }
 
-function getBaseUrl(): string {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  if (envUrl && envUrl.trim()) {
+export function getBaseUrl(overrideUrl?: string): string {
+  const envUrl =
+    overrideUrl !== undefined
+      ? overrideUrl
+      : (process.env as Record<string, string | undefined>)['EXPO_PUBLIC_API_URL'];
+
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
     return envUrl.trim().replace(/\/+$/, '');
   }
-  // Android emulator localhost alias
+
+  // In production builds, missing API URL must fail explicitly
+  const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
+  if (!isDev) {
+    throw new ApiError(
+      'Production API URL is not configured. Please set EXPO_PUBLIC_API_URL.',
+      0,
+      'CONFIG_ERROR'
+    );
+  }
+
+  // Android emulator localhost alias for local development only
   return 'http://10.0.2.2:3000';
 }
 

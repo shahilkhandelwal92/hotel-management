@@ -2,7 +2,7 @@
   "expo": {
     "name": "StayOS Operations",
     "slug": "stayos-operations",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "stayos",
@@ -23,6 +23,7 @@
         "backgroundColor": "#090d16"
       },
       "package": "com.stayos.operations",
+      "versionCode": 2,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE"
