@@ -1,16 +1,21 @@
-# StayOS Disaster Recovery & Business Continuity Plan
+# StayOS — Production Disaster Recovery & Data Protection Policy
 
-## 1. Recovery Objectives
-* **Recovery Point Objective (RPO):** < 5 minutes (via Neon Continuous WAL & PITR)
-* **Recovery Time Objective (RTO):** < 30 minutes (database restore & DNS switch)
+## 1. Database Architecture & Continuous Archiving
+* **Database Provider:** PostgreSQL 16 on Neon Serverless with connection pooling.
+* **Continuous WAL Archiving:** Write-Ahead Logs (WAL) continuously streamed to resilient cloud storage.
+* **Retention Period:** 7 days standard (expandable to 30 days for enterprise tiers).
+* **Recovery Point Objective (RPO):** < 5 minutes.
+* **Recovery Time Objective (RTO):** < 30 minutes.
 
 ---
 
-## 2. Database Backup & Restore Procedure
-1. Neon automatically archives WAL logs for 7–30 days.
-2. In the event of catastrophic data corruption, initiate Point-in-Time Recovery via management CLI or console:
+## 2. Non-Destructive Isolated Recovery Procedure
+1. Identify target recovery timestamp (e.g. pre-incident ISO timestamp).
+2. Create isolated recovery branch via Neon CLI:
    ```bash
    neon branches create --from-point-in-time <ISO_TIMESTAMP>
    ```
-3. Update `DATABASE_URL` in production backend environment variables.
-4. Run `npx prisma validate` and execute regression verification suite.
+3. Run schema validation: `npx prisma validate`.
+4. Run core data integrity queries to verify Hotels, Rooms, Folios, and Night Audit snapshots.
+5. Direct staging or fallback instance to restored connection string.
+6. Verify operational workflows before resuming live traffic.
