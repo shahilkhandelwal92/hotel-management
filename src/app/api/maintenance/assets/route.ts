@@ -22,7 +22,13 @@ export async function GET(req: NextRequest) {
         orderBy: { name: "asc" },
     });
 
-    return NextResponse.json({ assets });
+    const workOrders = await prisma.workOrder.findMany({
+        where: { hotelId: tenant.hotelId },
+        include: { asset: true, partsUsed: true },
+        orderBy: { createdAt: "desc" },
+    });
+
+    return NextResponse.json({ assets, workOrders });
 }
 
 export async function POST(req: NextRequest) {
@@ -40,13 +46,41 @@ export async function POST(req: NextRequest) {
             const wo = await createWorkOrder({
                 hotelId: tenant.hotelId,
                 assetId: body.assetId,
+                roomId: body.roomId,
                 title: body.title,
                 description: body.description,
                 priority: body.priority,
                 assignedToId: body.assignedToId,
                 createdById: auth.userId,
+                lockRoomOutOfOrder: body.lockRoomOutOfOrder,
             });
             return NextResponse.json({ workOrder: wo }, { status: 201 });
+        }
+
+        if (body.action === "UPDATE_WORK_ORDER") {
+            const wo = await prisma.workOrder.update({
+                where: { id: body.workOrderId },
+                data: {
+                    status: body.status || undefined,
+                    assignedTo: body.assignedToId || undefined,
+                    startedAt: body.status === "IN_PROGRESS" ? new Date() : undefined,
+                },
+                include: { asset: true, partsUsed: true },
+            });
+            return NextResponse.json({ workOrder: wo });
+        }
+
+        if (body.action === "ADD_PART") {
+            const part = await prisma.workOrderPart.create({
+                data: {
+                    workOrderId: body.workOrderId,
+                    partName: body.partName,
+                    quantity: Number(body.quantity || 1),
+                    unitCost: body.unitCost,
+                    totalCost: Number(body.unitCost || 0) * Number(body.quantity || 1),
+                },
+            });
+            return NextResponse.json({ part }, { status: 201 });
         }
 
         if (body.action === "COMPLETE_WORK_ORDER") {

@@ -259,6 +259,93 @@ export interface GroceryStockItem {
   minAlert: number;
 }
 
+export interface WorkOrderPart {
+  id: string;
+  workOrderId: string;
+  partName: string;
+  quantity: number;
+  unitCost: number | string;
+  totalCost: number | string;
+  createdAt: string;
+}
+
+export interface PreventiveMaintenanceSchedule {
+  id: string;
+  assetId: string;
+  hotelId: string;
+  title: string;
+  frequency: string;
+  lastRunDate?: string | null;
+  nextRunDate: string;
+  assignedRole: string;
+  isActive: boolean;
+}
+
+export interface MaintenanceAsset {
+  id: string;
+  hotelId: string;
+  name: string;
+  code: string;
+  category: string;
+  location: string;
+  serialNumber?: string | null;
+  modelNumber?: string | null;
+  purchaseDate?: string | null;
+  warrantyExpiry?: string | null;
+  status: 'OPERATIONAL' | 'UNDER_MAINTENANCE' | 'BREAKDOWN' | 'RETIRED' | string;
+  workOrders?: WorkOrder[];
+  schedules?: PreventiveMaintenanceSchedule[];
+}
+
+export interface WorkOrder {
+  id: string;
+  hotelId: string;
+  assetId?: string | null;
+  roomId?: string | null;
+  workOrderNumber: string;
+  title: string;
+  description: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'EMERGENCY' | string;
+  category: 'CORRECTIVE' | 'PREVENTIVE' | 'GUEST_REPORTED' | string;
+  status: 'REPORTED' | 'ASSIGNED' | 'IN_PROGRESS' | 'WAITING_PARTS' | 'COMPLETED' | 'VERIFIED' | 'CLOSED' | string;
+  assignedTo?: string | null;
+  reportedBy: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  costEstimate?: number | string | null;
+  actualCost?: number | string | null;
+  lockRoomOutOfOrder?: boolean;
+  createdAt: string;
+  asset?: MaintenanceAsset | null;
+  partsUsed?: WorkOrderPart[];
+}
+
+export interface InventoryStore {
+  id: string;
+  hotelId: string;
+  name: string;
+  code: string;
+  location?: string | null;
+  storekeeperId?: string | null;
+}
+
+export interface StockTransfer {
+  id: string;
+  hotelId: string;
+  transferNumber: string;
+  sourceStoreId: string;
+  sourceStore?: InventoryStore;
+  destStoreId: string;
+  destStore?: InventoryStore;
+  itemName: string;
+  quantity: number | string;
+  unit: string;
+  status: 'REQUESTED' | 'IN_TRANSIT' | 'RECEIVED' | 'REJECTED' | string;
+  requestedBy: string;
+  receivedBy?: string | null;
+  createdAt: string;
+}
+
 export interface ApiErrorResponse {
   error: string;
   code?: string;

@@ -177,23 +177,51 @@ export default function DashboardScreen() {
           </AppCard>
         </PermissionGate>
 
-        {/* 6. Maintenance / Engineering (Preview) */}
-        <AppCard style={[styles.moduleCard, styles.disabledModule]}>
-          <View style={styles.moduleHeader}>
-            <View style={[styles.moduleIconContainer, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
-              <Text style={styles.moduleIcon}>🔧</Text>
-            </View>
-            <View style={styles.moduleInfo}>
-              <View style={styles.moduleTitleRow}>
-                <Text style={styles.moduleTitle}>Engineering & Work Orders</Text>
-                <StatusBadge label="Phase 5" variant="default" />
+        {/* 6. Maintenance & Engineering */}
+        <PermissionGate permission="MAINTENANCE_VIEW">
+          <AppCard
+            style={styles.moduleCard}
+            onPress={() => router.push('/(app)/maintenance')}
+          >
+            <View style={styles.moduleHeader}>
+              <View style={[styles.moduleIconContainer, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
+                <Text style={styles.moduleIcon}>🔧</Text>
               </View>
-              <Text style={styles.moduleDescription}>
-                Corrective tasks, equipment inspection, and Out-of-Order room isolation.
-              </Text>
+              <View style={styles.moduleInfo}>
+                <View style={styles.moduleTitleRow}>
+                  <Text style={styles.moduleTitle}>Engineering & Maintenance</Text>
+                  <StatusBadge label="Ready" variant="success" />
+                </View>
+                <Text style={styles.moduleDescription}>
+                  Work orders, plant equipment, preventive maintenance & Out-of-Order room isolation.
+                </Text>
+              </View>
             </View>
-          </View>
-        </AppCard>
+          </AppCard>
+        </PermissionGate>
+
+        {/* 7. Stores & Inventory */}
+        <PermissionGate permission="STORE_VIEW">
+          <AppCard
+            style={styles.moduleCard}
+            onPress={() => router.push('/(app)/inventory')}
+          >
+            <View style={styles.moduleHeader}>
+              <View style={[styles.moduleIconContainer, { backgroundColor: 'rgba(234, 88, 12, 0.15)' }]}>
+                <Text style={styles.moduleIcon}>📦</Text>
+              </View>
+              <View style={styles.moduleInfo}>
+                <View style={styles.moduleTitleRow}>
+                  <Text style={styles.moduleTitle}>Stores & Stock Inventory</Text>
+                  <StatusBadge label="Ready" variant="success" />
+                </View>
+                <Text style={styles.moduleDescription}>
+                  Inter-department requisitions, dispatch transit, receiving & stock conservation.
+                </Text>
+              </View>
+            </View>
+          </AppCard>
+        </PermissionGate>
       </ScrollView>
 
       {/* Logout Confirmation Dialog */}

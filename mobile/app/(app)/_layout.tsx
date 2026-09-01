@@ -45,6 +45,13 @@ export default function AppLayout() {
       <Stack.Screen name="restaurant/order-details" />
       <Stack.Screen name="kitchen/index" />
       <Stack.Screen name="kitchen/stock" />
+      <Stack.Screen name="maintenance/index" />
+      <Stack.Screen name="maintenance/work-order" />
+      <Stack.Screen name="maintenance/create-work-order" />
+      <Stack.Screen name="maintenance/assets" />
+      <Stack.Screen name="inventory/index" />
+      <Stack.Screen name="inventory/transfers" />
+      <Stack.Screen name="inventory/create-transfer" />
     </Stack>
   );
 }

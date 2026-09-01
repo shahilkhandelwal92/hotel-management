@@ -23,7 +23,12 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ transfers });
+    const stores = await prisma.inventoryStore.findMany({
+        where: { hotelId: tenant.hotelId },
+        orderBy: { name: "asc" },
+    });
+
+    return NextResponse.json({ transfers, stores });
 }
 
 export async function POST(req: NextRequest) {
